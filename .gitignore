@@ -1,0 +1,17 @@
+# Binaries
+/motzworks
+/bin/
+*.exe
+
+# Local config & secrets
+config.yaml
+.env
+*.key
+
+# Frontend (later phases)
+node_modules/
+dist/
+
+# Editor/OS
+.DS_Store
+*.swp

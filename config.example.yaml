@@ -1,0 +1,30 @@
+# motzworks configuration. Copy to config.yaml and edit.
+# Secrets (DB password, vault key) are best provided via environment variables
+# rather than committed here — see MOTZWORKS_* below.
+
+log:
+  level: info      # debug, info, warn, error
+  format: text     # text or json
+
+database:
+  host: localhost
+  port: 5432
+  user: motzworks
+  password: motzworks   # or set MOTZWORKS_DB_PASSWORD
+  name: motzworks
+  sslmode: disable
+
+server:
+  addr: ":8080"
+
+vault:
+  # Env var holding the base64 key. Generate one with: motzworks vault genkey
+  key_env: MOTZWORKS_VAULT_KEY
+
+scan:
+  concurrency: 64
+
+# Environment overrides:
+#   MOTZWORKS_DB_HOST, MOTZWORKS_DB_PORT, MOTZWORKS_DB_USER,
+#   MOTZWORKS_DB_PASSWORD, MOTZWORKS_DB_NAME, MOTZWORKS_DB_SSLMODE,
+#   MOTZWORKS_LOG_LEVEL, MOTZWORKS_VAULT_KEY
