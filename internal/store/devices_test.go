@@ -83,7 +83,7 @@ func TestUpsertInsertAndDedupBySerial(t *testing.T) {
 		Software: []model.Software{{Name: "nginx", Version: "1.24.0"}},
 	}
 
-	id1, changes, err := st.UpsertDevice(ctx, dev, "")
+	id1, changes, err := st.UpsertDevice(ctx, dev, "", true)
 	if err != nil {
 		t.Fatalf("insert: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestUpsertInsertAndDedupBySerial(t *testing.T) {
 	// and emit change events.
 	dev.Hostname = "web01-renamed"
 	dev.OS.Version = "24.04"
-	id2, changes, err := st.UpsertDevice(ctx, dev, "")
+	id2, changes, err := st.UpsertDevice(ctx, dev, "", true)
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
@@ -129,14 +129,14 @@ func TestDedupByMAC(t *testing.T) {
 			{Name: "eth0", MAC: "11:22:33:44:55:66"},
 		},
 	}
-	id1, _, err := st.UpsertDevice(ctx, dev, "")
+	id1, _, err := st.UpsertDevice(ctx, dev, "", true)
 	if err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 
 	// Same MAC, different hostname, no serial → must match by MAC.
 	dev.Hostname = "host-a-dhcp-changed"
-	id2, _, err := st.UpsertDevice(ctx, dev, "")
+	id2, _, err := st.UpsertDevice(ctx, dev, "", true)
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
@@ -152,11 +152,11 @@ func TestCreateRelationship(t *testing.T) {
 	st := testStore(t)
 	ctx := context.Background()
 
-	hv, _, err := st.UpsertDevice(ctx, model.Device{Type: model.TypeHypervisor, Hostname: "pve1", Serial: "PVE-1"}, "")
+	hv, _, err := st.UpsertDevice(ctx, model.Device{Type: model.TypeHypervisor, Hostname: "pve1", Serial: "PVE-1"}, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	vm, _, err := st.UpsertDevice(ctx, model.Device{Type: model.TypeVM, Hostname: "web01", Serial: "VM-1"}, "")
+	vm, _, err := st.UpsertDevice(ctx, model.Device{Type: model.TypeVM, Hostname: "web01", Serial: "VM-1"}, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,6 +185,44 @@ func TestCreateRelationship(t *testing.T) {
 	}
 }
 
+func TestDiscoveryOnlyPreservesChildren(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+
+	// A deep scan collects interfaces/software/users.
+	deep := model.Device{
+		Serial:     "SN-KEEP-1",
+		Type:       model.TypeLinux,
+		Interfaces: []model.Interface{{Name: "eth0", MAC: "aa:bb:cc:00:00:01"}},
+		Software:   []model.Software{{Name: "nginx"}, {Name: "openssh"}},
+		Users:      []model.UserAccount{{Username: "root"}},
+		OS:         &model.OSInfo{Family: "linux", Name: "NixOS"},
+	}
+	id, _, err := st.UpsertDevice(ctx, deep, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A later discovery-only pass (collected=false) for the same device must
+	// NOT wipe the previously collected children.
+	shallow := model.Device{Serial: "SN-KEEP-1", Type: model.TypeLinux, Source: "discovery"}
+	if _, _, err := st.UpsertDevice(ctx, shallow, "", false); err != nil {
+		t.Fatal(err)
+	}
+
+	counts := func(table string) int {
+		var n int
+		if err := st.pool.QueryRow(ctx, "SELECT count(*) FROM "+table+" WHERE device_id=$1", id).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if counts("interface") != 1 || counts("software") != 2 || counts("user_account") != 1 {
+		t.Fatalf("discovery-only pass wiped data: ifaces=%d sw=%d users=%d",
+			counts("interface"), counts("software"), counts("user_account"))
+	}
+}
+
 func TestChildrenReplaced(t *testing.T) {
 	st := testStore(t)
 	ctx := context.Background()
@@ -193,13 +231,13 @@ func TestChildrenReplaced(t *testing.T) {
 		Serial:   "SN-SW-1",
 		Software: []model.Software{{Name: "pkg-a"}, {Name: "pkg-b"}, {Name: "pkg-c"}},
 	}
-	id, _, err := st.UpsertDevice(ctx, dev, "")
+	id, _, err := st.UpsertDevice(ctx, dev, "", true)
 	if err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 
 	dev.Software = []model.Software{{Name: "pkg-a"}}
-	if _, _, err := st.UpsertDevice(ctx, dev, ""); err != nil {
+	if _, _, err := st.UpsertDevice(ctx, dev, "", true); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 

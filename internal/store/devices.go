@@ -30,7 +30,12 @@ type existing struct {
 // UpsertDevice resolves the device's identity, inserts or updates it together
 // with its child records, records scalar field changes, and returns the device
 // id and the list of changes. The whole operation runs in one transaction.
-func (s *Store) UpsertDevice(ctx context.Context, d model.Device, scanRunID string) (string, []ChangeEvent, error) {
+//
+// collected reports whether a collector actually gathered data for this device.
+// When false (a discovery-only pass, or all collectors failed), the child
+// records (interfaces/software/users/os/hardware) are LEFT UNTOUCHED so a
+// shallow or failed scan never erases inventory from a previous deep scan.
+func (s *Store) UpsertDevice(ctx context.Context, d model.Device, scanRunID string, collected bool) (string, []ChangeEvent, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return "", nil, err
@@ -79,8 +84,10 @@ func (s *Store) UpsertDevice(ctx context.Context, d model.Device, scanRunID stri
 		}
 	}
 
-	if err := replaceChildren(ctx, tx, id, d); err != nil {
-		return "", nil, err
+	if collected {
+		if err := replaceChildren(ctx, tx, id, d); err != nil {
+			return "", nil, err
+		}
 	}
 
 	for _, ch := range changes {

@@ -150,7 +150,8 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 		break
 	}
 
-	id, changes, err := e.store.UpsertDevice(ctx, dev, runID)
+	collected := hr.Collector != ""
+	id, changes, err := e.store.UpsertDevice(ctx, dev, runID, collected)
 	if err != nil {
 		hr.Err = err
 		e.recordEvent(ctx, runID, hr)
@@ -162,7 +163,7 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 
 	// Persist related devices (e.g. VMs) and link them to this device.
 	for _, rel := range related {
-		childID, _, err := e.store.UpsertDevice(ctx, rel.Device, runID)
+		childID, _, err := e.store.UpsertDevice(ctx, rel.Device, runID, true)
 		if err != nil {
 			e.log.Warn("upsert related device failed", "parent", hr.Addr, "err", err)
 			continue
