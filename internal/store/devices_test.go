@@ -118,6 +118,18 @@ func TestUpsertInsertAndDedupBySerial(t *testing.T) {
 	}
 }
 
+func TestMacsOfExcludesRandomized(t *testing.T) {
+	dev := model.Device{Interfaces: []model.Interface{
+		{Name: "eth0", MAC: "08:b6:57:fa:a2:af"}, // universally administered → kept
+		{Name: "wlan0", MAC: "a2:11:22:33:44:55"}, // 0xa2 → locally administered (randomized)
+		{Name: "x", MAC: "not-a-mac"},             // unparseable → excluded
+	}}
+	got := macsOf(dev)
+	if len(got) != 1 || got[0] != "08:b6:57:fa:a2:af" {
+		t.Errorf("macsOf = %v, want only the universally-administered MAC", got)
+	}
+}
+
 func TestDedupByMAC(t *testing.T) {
 	st := testStore(t)
 	ctx := context.Background()

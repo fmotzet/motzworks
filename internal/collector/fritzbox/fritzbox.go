@@ -94,7 +94,24 @@ func parseDesc(raw []byte) (model.Device, error) {
 	if v := strings.TrimSpace(d.SystemVersion.Display); v != "" {
 		dev.OS = &model.OSInfo{Family: "fritzos", Name: name, Version: v}
 	}
+
+	// The UDN serialNumber is the gateway's burned-in hardware MAC. Recording it
+	// as an interface gives the device a stable identity key for scheduled
+	// rescans (it ranks above primary IP), surviving a DHCP/IP change. Only used
+	// when it parses as a real MAC.
+	if mac, ok := parseMAC(d.Device.SerialNumber); ok {
+		dev.Interfaces = []model.Interface{{Name: "lan", MAC: mac}}
+	}
 	return dev, nil
+}
+
+// parseMAC returns the normalized MAC if s is a valid 6-octet hardware address.
+func parseMAC(s string) (string, bool) {
+	hw, err := net.ParseMAC(strings.TrimSpace(s))
+	if err != nil || len(hw) != 6 {
+		return "", false
+	}
+	return hw.String(), true
 }
 
 func firstNonEmpty(vals ...string) string {

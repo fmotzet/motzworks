@@ -49,6 +49,10 @@ func TestParseDescFritzbox(t *testing.T) {
 	if dev.OS == nil || dev.OS.Family != "fritzos" || dev.OS.Version != "286.08.03" {
 		t.Errorf("os = %+v", dev.OS)
 	}
+	// The UDN MAC must surface as an interface so rescans dedup on it.
+	if len(dev.Interfaces) != 1 || dev.Interfaces[0].MAC != "08:b6:57:fa:a2:af" {
+		t.Errorf("interfaces = %+v", dev.Interfaces)
+	}
 }
 
 func TestParseDescNotAVM(t *testing.T) {

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -279,13 +280,29 @@ func (s *Store) CreateRelationship(ctx context.Context, parentID, childID, kind 
 	return err
 }
 
-// macsOf returns the non-empty interface MACs of a device.
+// macsOf returns interface MACs usable as identity keys. Locally-administered
+// (randomized/private) MACs are excluded: modern clients — notably iPhones and
+// Android/Windows on Wi-Fi — rotate a per-network random MAC, so matching on one
+// would split a device across scans or merge distinct devices. Such MACs are
+// still stored as interface inventory; they just don't drive dedup. Real
+// burned-in NIC and infrastructure MACs (universally administered) are kept.
 func macsOf(d model.Device) []string {
 	var macs []string
 	for _, ifc := range d.Interfaces {
-		if ifc.MAC != "" {
+		if ifc.MAC != "" && !isLocallyAdministered(ifc.MAC) {
 			macs = append(macs, ifc.MAC)
 		}
 	}
 	return macs
+}
+
+// isLocallyAdministered reports whether a MAC has the locally-administered bit
+// (0x02 of the first octet) set — the marker for randomized/private addresses.
+// An unparseable MAC is treated as locally administered (not trusted for dedup).
+func isLocallyAdministered(mac string) bool {
+	hw, err := net.ParseMAC(mac)
+	if err != nil || len(hw) == 0 {
+		return true
+	}
+	return hw[0]&0x02 != 0
 }
