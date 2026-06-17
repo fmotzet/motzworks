@@ -27,6 +27,7 @@ func cmdServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	cfgPath := fs.String("config", "config.yaml", "config file")
 	addrOverride := fs.String("addr", "", "override server.addr (e.g. :8080)")
+	autoMigrate := fs.Bool("migrate", false, "apply pending DB migrations before serving")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -57,6 +58,14 @@ func cmdServe(args []string) error {
 		return err
 	}
 	defer st.Close()
+
+	if *autoMigrate {
+		applied, err := st.Migrate(ctx)
+		if err != nil {
+			return fmt.Errorf("migrate: %w", err)
+		}
+		log.Info("migrations applied", "count", len(applied))
+	}
 
 	if n, err := st.CountUsers(ctx); err == nil && n == 0 {
 		log.Warn("no dashboard users exist; create one with: motzworks user add -username admin -password <pw> -role admin")

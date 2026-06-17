@@ -9,7 +9,18 @@ See [PLAN.md](PLAN.md) for the full architecture and roadmap.
 
 ## Status
 
-**Phase 4 — Hardening (in progress).** Distributed collectors were descoped
+**Phase 5 — Polish (in progress).** Production packaging and observability:
+
+- **Docker** — multi-stage build (UI → embedded static Go binary → ~16 MB
+  distroless image) and a production `docker-compose.prod.yml`. The container
+  runs `serve -migrate` (auto-applies schema) and is fully env-configurable.
+- **Prometheus** — `GET /metrics` exposition (device totals, by-type, software
+  titles, last-scan timestamp, build info).
+- **Docs** — [docs/DEPLOY.md](docs/DEPLOY.md) and [docs/API.md](docs/API.md).
+
+See **[docs/DEPLOY.md](docs/DEPLOY.md)** to run it in production.
+
+**Phase 4 — Hardening.** Distributed collectors were descoped
 (single-scanner deployment), so this phase is security/scale hardening:
 
 - **Audit log** — `audit_log` table recording logins, login failures, logouts

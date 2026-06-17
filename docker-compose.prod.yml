@@ -1,0 +1,44 @@
+# Production-style deployment: motzworks + PostgreSQL.
+#
+#   export MOTZWORKS_VAULT_KEY="$(docker run --rm <image> vault genkey)"  # keep stable!
+#   export MOTZWORKS_AUTH_SECRET="$(openssl rand -base64 32)"             # keep stable!
+#   export MOTZWORKS_DB_PASSWORD="$(openssl rand -base64 24)"
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   # create the first admin:
+#   docker compose -f docker-compose.prod.yml run --rm app user add \
+#       -username admin -password '<pw>' -role admin
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: motzworks
+      POSTGRES_PASSWORD: ${MOTZWORKS_DB_PASSWORD:?set MOTZWORKS_DB_PASSWORD}
+      POSTGRES_DB: motzworks
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U motzworks"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+    image: motzworks:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MOTZWORKS_DB_HOST: postgres
+      MOTZWORKS_DB_PASSWORD: ${MOTZWORKS_DB_PASSWORD:?set MOTZWORKS_DB_PASSWORD}
+      MOTZWORKS_VAULT_KEY: ${MOTZWORKS_VAULT_KEY:?set MOTZWORKS_VAULT_KEY}
+      MOTZWORKS_AUTH_SECRET: ${MOTZWORKS_AUTH_SECRET:?set MOTZWORKS_AUTH_SECRET}
+    ports:
+      - "8080:8080"
+    # CMD already runs "serve -migrate"
+
+volumes:
+  pgdata:

@@ -1,0 +1,8 @@
+.git
+bin/
+web/ui/node_modules
+web/ui/.vite
+config.yaml
+*.key
+.env
+PLAN.md

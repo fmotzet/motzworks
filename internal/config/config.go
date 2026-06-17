@@ -94,11 +94,15 @@ func Load(path string) (Config, error) {
 	cfg := Default()
 	if path != "" {
 		b, err := os.ReadFile(path)
-		if err != nil {
+		switch {
+		case err == nil:
+			if err := yaml.Unmarshal(b, &cfg); err != nil {
+				return Config{}, fmt.Errorf("parse config %s: %w", path, err)
+			}
+		case os.IsNotExist(err):
+			// No file: rely on defaults + environment (container-friendly).
+		default:
 			return Config{}, fmt.Errorf("read config %s: %w", path, err)
-		}
-		if err := yaml.Unmarshal(b, &cfg); err != nil {
-			return Config{}, fmt.Errorf("parse config %s: %w", path, err)
 		}
 	}
 	cfg.applyEnv()

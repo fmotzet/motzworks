@@ -66,6 +66,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 
 	// Authenticated (any role).
 	mux.Handle("GET /api/me", s.auth(s.handleMe))
