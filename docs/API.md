@@ -25,6 +25,7 @@ to protected routes get `401`; viewers hitting admin routes get `403`.
 | GET | `/api/software` | software rollup; query: `q`, `limit` |
 | GET | `/api/changes` | change timeline; query: `device_id`, `limit` |
 | GET | `/api/scans` | recent scan runs; query: `limit` |
+| GET | `/api/scans/{id}` | one run + its per-host events (`{scan, events}`); poll while `status=running` for live progress |
 | GET | `/api/targets` | scan targets |
 | GET | `/api/schedules` | schedules |
 

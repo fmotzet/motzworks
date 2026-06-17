@@ -95,6 +95,24 @@ func (s *Server) handleScans(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": scans})
 }
 
+func (s *Server) handleScanDetail(w http.ResponseWriter, r *http.Request) {
+	run, err := s.store.GetScanRun(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if run == nil {
+		writeError(w, http.StatusNotFound, "scan not found")
+		return
+	}
+	events, err := s.store.ListScanEvents(r.Context(), run.ID, queryInt(r, "limit", 1000))
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"scan": run, "events": events})
+}
+
 // serverError logs and returns a 500.
 func (s *Server) serverError(w http.ResponseWriter, err error) {
 	s.log.Error("api error", "err", err)

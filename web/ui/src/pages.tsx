@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  api, Stats, DeviceItem, DeviceDetail, SoftwareAgg, ChangeRow, ScanRow,
+  api, Stats, DeviceItem, DeviceDetail, SoftwareAgg, ChangeRow, ScanRow, ScanDetail,
   ScanTarget, Credential, Schedule,
 } from "./api";
 import { navigate } from "./router";
@@ -195,6 +195,10 @@ export function DeviceDetailPage({ id }: { id: string }) {
   const { data: changes } = useFetch<{ items: ChangeRow[] }>(`/api/changes?device_id=${id}&limit=50`);
   if (error) return <ErrorBox error={error} />;
   if (!d) return <div className="muted">Loading…</div>;
+  // The API omits empty collections as null; normalize to arrays.
+  const interfaces = d.interfaces ?? [];
+  const software = d.software ?? [];
+  const users = d.users ?? [];
   return (
     <div>
       <a href="#/devices" className="back">← Devices</a>
@@ -227,39 +231,39 @@ export function DeviceDetailPage({ id }: { id: string }) {
         )}
       </div>
 
-      <Section title={`Interfaces (${d.interfaces.length})`}>
+      <Section title={`Interfaces (${interfaces.length})`}>
         <table>
           <thead><tr><th>Name</th><th>MAC</th><th>IP</th><th>Speed</th></tr></thead>
           <tbody>
-            {d.interfaces.map((i, idx) => (
+            {interfaces.map((i, idx) => (
               <tr key={idx}><td>{i.name}</td><td>{i.mac || "—"}</td><td>{i.ip || "—"}</td>
                 <td>{i.speed_mbps ? `${i.speed_mbps} Mbps` : "—"}</td></tr>
             ))}
-            {d.interfaces.length === 0 && <tr><td colSpan={4} className="muted">None</td></tr>}
+            {interfaces.length === 0 && <tr><td colSpan={4} className="muted">None</td></tr>}
           </tbody>
         </table>
       </Section>
 
-      <Section title={`Software (${d.software.length})`}>
+      <Section title={`Software (${software.length})`}>
         <table>
           <thead><tr><th>Name</th><th>Version</th><th>Vendor</th></tr></thead>
           <tbody>
-            {d.software.map((s, idx) => (
+            {software.map((s, idx) => (
               <tr key={idx}><td>{s.name}</td><td>{s.version || "—"}</td><td>{s.vendor || "—"}</td></tr>
             ))}
-            {d.software.length === 0 && <tr><td colSpan={3} className="muted">None</td></tr>}
+            {software.length === 0 && <tr><td colSpan={3} className="muted">None</td></tr>}
           </tbody>
         </table>
       </Section>
 
-      <Section title={`Users (${d.users.length})`}>
+      <Section title={`Users (${users.length})`}>
         <table>
           <thead><tr><th>Username</th><th>Full name</th><th>Local</th></tr></thead>
           <tbody>
-            {d.users.map((u, idx) => (
+            {users.map((u, idx) => (
               <tr key={idx}><td>{u.username}</td><td>{u.full_name || "—"}</td><td>{u.is_local ? "yes" : "no"}</td></tr>
             ))}
-            {d.users.length === 0 && <tr><td colSpan={3} className="muted">None</td></tr>}
+            {users.length === 0 && <tr><td colSpan={3} className="muted">None</td></tr>}
           </tbody>
         </table>
       </Section>
@@ -344,7 +348,7 @@ export function Scans() {
         <thead><tr><th>Started</th><th>Finished</th><th>Status</th><th>Hosts</th><th>Error</th></tr></thead>
         <tbody>
           {(data?.items ?? []).map((s) => (
-            <tr key={s.id}>
+            <tr key={s.id} className="clickable" onClick={() => navigate(`/scans/${s.id}`)}>
               <td>{fmtDate(s.started_at)}</td><td>{fmtDate(s.finished_at)}</td>
               <td><span className={`tag status-${s.status}`}>{s.status}</span></td>
               <td>{s.hosts_found}</td><td className="muted">{s.error || "—"}</td>
@@ -353,6 +357,82 @@ export function Scans() {
           {(data?.items ?? []).length === 0 && <tr><td colSpan={5} className="muted">No scans.</td></tr>}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+export function ScanDetailPage({ id }: { id: string }) {
+  const [data, setData] = useState<ScanDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const load = () => {
+      api.get<ScanDetail>(`/api/scans/${id}`)
+        .then((d) => {
+          if (!live) return;
+          setData(d);
+          if (d.scan.status === "running") timer = setTimeout(load, 2000); // poll while running
+        })
+        .catch((e) => live && setError(e.message));
+    };
+    load();
+    return () => { live = false; clearTimeout(timer); };
+  }, [id]);
+
+  if (error) return <ErrorBox error={error} />;
+  if (!data) return <div className="muted">Loading…</div>;
+
+  const { scan, events } = data;
+  const running = scan.status === "running";
+  const collected = events.filter((e) => e.status === "collected").length;
+  const failed = events.filter((e) => e.status === "failed").length;
+
+  return (
+    <div>
+      <a href="#/scans" className="back">← Scans</a>
+      <h1>
+        Scan <span className={`tag status-${scan.status}`}>{scan.status}</span>
+        {running && <span className="muted small"> · live (auto-refreshing)</span>}
+      </h1>
+
+      <div className="stat-grid">
+        <Stat label="Discovered" value={scan.discovered} />
+        <Stat label="Processed" value={events.length} />
+        <Stat label="Collected" value={collected} />
+        <Stat label="Failed" value={failed} />
+      </div>
+
+      <Section title="Run">
+        <KV k="Started" v={fmtDate(scan.started_at)} />
+        <KV k="Finished" v={fmtDate(scan.finished_at)} />
+        <KV k="Persisted" v={scan.hosts_found} />
+        {scan.error && <KV k="Error" v={scan.error} />}
+      </Section>
+
+      <Section title={`Hosts (${events.length})`}>
+        <table>
+          <thead><tr><th>Host</th><th>Class</th><th>Collector</th><th>Changes</th><th>Status</th></tr></thead>
+          <tbody>
+            {events.map((e, idx) => (
+              <tr key={idx}>
+                <td>{e.addr}</td>
+                <td>{e.class || "—"}</td>
+                <td>{e.collector || "—"}</td>
+                <td>{e.changes || "—"}</td>
+                <td>
+                  <span className={`tag status-${e.status === "collected" ? "ok" : e.status === "failed" ? "failed" : "running"}`}>{e.status}</span>
+                  {e.error && <span className="muted small"> — {e.error}</span>}
+                </td>
+              </tr>
+            ))}
+            {events.length === 0 && (
+              <tr><td colSpan={5} className="muted">{running ? "Scanning…" : "No hosts processed."}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </Section>
     </div>
   );
 }

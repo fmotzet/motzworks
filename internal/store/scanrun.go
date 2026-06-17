@@ -13,6 +13,21 @@ func (s *Store) CreateScanRun(ctx context.Context, scanTargetID *string) (string
 	return id, err
 }
 
+// SetScanDiscovered records how many live hosts a run will process.
+func (s *Store) SetScanDiscovered(ctx context.Context, id string, n int) error {
+	_, err := s.pool.Exec(ctx, `UPDATE scan_run SET discovered = $2 WHERE id = $1`, id, n)
+	return err
+}
+
+// InsertScanEvent appends a per-host progress event for a scan run.
+func (s *Store) InsertScanEvent(ctx context.Context, runID, addr, class, collector, status string, changes int, errMsg string) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO scan_event (scan_run_id, addr, device_class, collector, status, changes, error)
+		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7,''))`,
+		runID, addr, class, collector, status, changes, errMsg)
+	return err
+}
+
 // FinishScanRun records the terminal state of a scan run. A non-empty errMsg
 // is stored and the status forced to 'failed'.
 func (s *Store) FinishScanRun(ctx context.Context, id, status string, hostsFound int, errMsg string) error {

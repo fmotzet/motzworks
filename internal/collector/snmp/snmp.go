@@ -5,7 +5,6 @@ package snmp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -109,7 +108,7 @@ func (c *Collector) client(ctx context.Context, target string, cred collector.Cr
 func (c *Collector) Collect(ctx context.Context, t collector.Target) (collector.Result, error) {
 	cred, ok := pickCredential(t.Credentials)
 	if !ok {
-		return collector.Result{}, errors.New("no snmp credential")
+		return collector.Result{}, collector.ErrNoCredential
 	}
 
 	g, err := c.client(ctx, t.Addr.String(), cred)

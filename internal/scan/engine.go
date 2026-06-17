@@ -6,6 +6,7 @@ package scan
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/netip"
 
@@ -81,6 +82,9 @@ func (e *Engine) Run(ctx context.Context, opts Options) (Summary, error) {
 	}
 	live := mergeHosts(discovery.Discover(ctx, addrs, opts.Discovery), extra)
 	e.log.Info("discovery finished", "live", len(live), "snmp_probe", len(extra))
+	if err := e.store.SetScanDiscovered(ctx, runID, len(live)); err != nil {
+		e.log.Warn("set discovered count failed", "err", err)
+	}
 
 	workers := opts.CollectWorkers
 	if workers <= 0 {
@@ -132,6 +136,9 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 		t := collector.Target{Addr: h.Addr, Hostname: h.Addr.String(), Class: class, Credentials: creds}
 		res, err := c.Collect(ctx, t)
 		if err != nil {
+			if errors.Is(err, collector.ErrNoCredential) {
+				continue // collector simply doesn't apply to this host
+			}
 			e.log.Debug("collector failed", "collector", c.Name(), "addr", hr.Addr, "err", err)
 			hr.CollectErr = c.Name() + ": " + err.Error()
 			continue
@@ -146,10 +153,12 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 	id, changes, err := e.store.UpsertDevice(ctx, dev, runID)
 	if err != nil {
 		hr.Err = err
+		e.recordEvent(ctx, runID, hr)
 		return hr
 	}
 	hr.DeviceID = id
 	hr.Changes = len(changes)
+	e.recordEvent(ctx, runID, hr)
 
 	// Persist related devices (e.g. VMs) and link them to this device.
 	for _, rel := range related {
@@ -163,6 +172,23 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 		}
 	}
 	return hr
+}
+
+// recordEvent writes a per-host progress event for live scan monitoring.
+func (e *Engine) recordEvent(ctx context.Context, runID string, hr HostResult) {
+	status := "discovered"
+	errMsg := ""
+	switch {
+	case hr.Err != nil:
+		status, errMsg = "failed", hr.Err.Error()
+	case hr.Collector != "":
+		status = "collected"
+	case hr.CollectErr != "":
+		status, errMsg = "failed", hr.CollectErr
+	}
+	if err := e.store.InsertScanEvent(ctx, runID, hr.Addr, string(hr.Class), hr.Collector, status, hr.Changes, errMsg); err != nil {
+		e.log.Debug("record scan event failed", "addr", hr.Addr, "err", err)
+	}
 }
 
 // mergeDevice overlays collector output onto the discovery base: the discovered

@@ -97,7 +97,7 @@ func parseFirmware(raw []byte) (model.Device, error) {
 func (c *Collector) Collect(ctx context.Context, t collector.Target) (collector.Result, error) {
 	cred, ok := pickCredential(t.Credentials)
 	if !ok {
-		return collector.Result{}, errors.New("no opnsense-api credential")
+		return collector.Result{}, collector.ErrNoCredential
 	}
 	port := c.Port
 	if port == 0 {

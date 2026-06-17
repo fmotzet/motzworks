@@ -6,7 +6,6 @@ package winrm
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -52,7 +51,7 @@ func pickCredential(creds []collector.Credential) (collector.Credential, bool) {
 func (c *Collector) Collect(ctx context.Context, t collector.Target) (collector.Result, error) {
 	cred, ok := pickCredential(t.Credentials)
 	if !ok {
-		return collector.Result{}, errors.New("no winrm credential")
+		return collector.Result{}, collector.ErrNoCredential
 	}
 
 	port := c.Port

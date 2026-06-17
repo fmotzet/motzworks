@@ -21,3 +21,8 @@ export function deviceIdFromRoute(route: string): string | null {
   const m = route.match(/^\/devices\/(.+)$/);
   return m ? m[1] : null;
 }
+
+export function scanIdFromRoute(route: string): string | null {
+  const m = route.match(/^\/scans\/(.+)$/);
+  return m ? m[1] : null;
+}

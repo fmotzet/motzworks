@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { Component, ReactNode, useEffect, useState } from "react";
 import { api, Me } from "./api";
-import { useHashRoute, navigate, deviceIdFromRoute } from "./router";
+import { useHashRoute, navigate, deviceIdFromRoute, scanIdFromRoute } from "./router";
 import {
-  Login, Dashboard, Devices, DeviceDetailPage, Software, Changes, Scans, Admin,
+  Login, Dashboard, Devices, DeviceDetailPage, Software, Changes, Scans, ScanDetailPage, Admin,
 } from "./pages";
 
 const NAV = [
@@ -56,10 +56,33 @@ export function App() {
         </div>
       </aside>
       <main className="content">
-        <Routed route={route} role={me.role} />
+        {/* Keyed by route so navigating away clears a page-level error. */}
+        <ErrorBoundary key={route}>
+          <Routed route={route} role={me.role} />
+        </ErrorBoundary>
       </main>
     </div>
   );
+}
+
+// ErrorBoundary keeps a single page's render error from blanking the whole app.
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="card">
+          <h2>Something went wrong on this page</h2>
+          <div className="error">{String(this.state.error)}</div>
+          <p className="muted">Navigate to another section to continue.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function isActive(route: string, path: string): boolean {
@@ -70,6 +93,8 @@ function isActive(route: string, path: string): boolean {
 function Routed({ route, role }: { route: string; role: string }) {
   const devId = deviceIdFromRoute(route);
   if (devId) return <DeviceDetailPage id={devId} />;
+  const scanId = scanIdFromRoute(route);
+  if (scanId) return <ScanDetailPage id={scanId} />;
   switch (route) {
     case "/": return <Dashboard />;
     case "/devices": return <Devices />;

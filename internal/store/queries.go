@@ -206,7 +206,7 @@ func (s *Store) deviceInterfaces(ctx context.Context, id string) ([]IfaceDTO, er
 		return nil, err
 	}
 	defer rows.Close()
-	var out []IfaceDTO
+	out := []IfaceDTO{}
 	for rows.Next() {
 		var i IfaceDTO
 		if err := rows.Scan(&i.Name, &i.MAC, &i.IP, &i.SpeedMbps); err != nil {
@@ -225,7 +225,7 @@ func (s *Store) deviceSoftware(ctx context.Context, id string) ([]SoftwareDTO, e
 		return nil, err
 	}
 	defer rows.Close()
-	var out []SoftwareDTO
+	out := []SoftwareDTO{}
 	for rows.Next() {
 		var sw SoftwareDTO
 		if err := rows.Scan(&sw.Name, &sw.Version, &sw.Vendor); err != nil {
@@ -244,7 +244,7 @@ func (s *Store) deviceUsers(ctx context.Context, id string) ([]UserDTO, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []UserDTO
+	out := []UserDTO{}
 	for rows.Next() {
 		var u UserDTO
 		if err := rows.Scan(&u.Username, &u.FullName, &u.LastLogon, &u.IsLocal); err != nil {
@@ -344,8 +344,15 @@ type ScanRow struct {
 	StartedAt  time.Time  `json:"started_at"`
 	FinishedAt *time.Time `json:"finished_at"`
 	Status     string     `json:"status"`
+	Discovered int        `json:"discovered"`
 	HostsFound int        `json:"hosts_found"`
 	Error      string     `json:"error"`
+}
+
+const scanRowCols = `id, started_at, finished_at, status, discovered, hosts_found, COALESCE(error,'')`
+
+func scanScan(row interface{ Scan(...any) error }, r *ScanRow) error {
+	return row.Scan(&r.ID, &r.StartedAt, &r.FinishedAt, &r.Status, &r.Discovered, &r.HostsFound, &r.Error)
 }
 
 // ListScans returns recent scan runs.
@@ -353,9 +360,8 @@ func (s *Store) ListScans(ctx context.Context, limit int) ([]ScanRow, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	rows, err := s.pool.Query(ctx, `
-		SELECT id, started_at, finished_at, status, hosts_found, COALESCE(error,'')
-		FROM scan_run ORDER BY started_at DESC LIMIT $1`, limit)
+	rows, err := s.pool.Query(ctx,
+		`SELECT `+scanRowCols+` FROM scan_run ORDER BY started_at DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -363,10 +369,57 @@ func (s *Store) ListScans(ctx context.Context, limit int) ([]ScanRow, error) {
 	var out []ScanRow
 	for rows.Next() {
 		var r ScanRow
-		if err := rows.Scan(&r.ID, &r.StartedAt, &r.FinishedAt, &r.Status, &r.HostsFound, &r.Error); err != nil {
+		if err := scanScan(rows, &r); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// GetScanRun returns a single scan run, or (nil, nil) if not found.
+func (s *Store) GetScanRun(ctx context.Context, id string) (*ScanRow, error) {
+	var r ScanRow
+	err := scanScan(s.pool.QueryRow(ctx, `SELECT `+scanRowCols+` FROM scan_run WHERE id = $1`, id), &r)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// ScanEventRow is one per-host progress event.
+type ScanEventRow struct {
+	TS        time.Time `json:"ts"`
+	Addr      string    `json:"addr"`
+	Class     string    `json:"class"`
+	Collector string    `json:"collector"`
+	Status    string    `json:"status"`
+	Changes   int       `json:"changes"`
+	Error     string    `json:"error"`
+}
+
+// ListScanEvents returns a run's per-host events, newest first.
+func (s *Store) ListScanEvents(ctx context.Context, runID string, limit int) ([]ScanEventRow, error) {
+	if limit <= 0 || limit > 5000 {
+		limit = 1000
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT ts, addr, COALESCE(device_class,''), COALESCE(collector,''), status, changes, COALESCE(error,'')
+		FROM scan_event WHERE scan_run_id = $1 ORDER BY ts DESC LIMIT $2`, runID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ScanEventRow{}
+	for rows.Next() {
+		var e ScanEventRow
+		if err := rows.Scan(&e.TS, &e.Addr, &e.Class, &e.Collector, &e.Status, &e.Changes, &e.Error); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
 	}
 	return out, rows.Err()
 }

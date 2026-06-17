@@ -5,11 +5,17 @@ package collector
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"sync"
 
 	"github.com/stock3/motzworks/internal/model"
 )
+
+// ErrNoCredential signals that a collector had no applicable credential for a
+// target. The engine treats this as "not applicable" (the host stays
+// discovered-only) rather than a collection failure.
+var ErrNoCredential = errors.New("no applicable credential")
 
 // DeviceClass is the fingerprinted classification used to route a target to
 // the collectors that can handle it.

@@ -4,7 +4,6 @@ package ssh
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -52,7 +51,7 @@ func pickCredential(creds []collector.Credential) (collector.Credential, bool) {
 func (c *Collector) Collect(ctx context.Context, t collector.Target) (collector.Result, error) {
 	cred, ok := pickCredential(t.Credentials)
 	if !ok {
-		return collector.Result{}, errors.New("no ssh credential")
+		return collector.Result{}, collector.ErrNoCredential
 	}
 
 	auth, err := authMethod(cred)
