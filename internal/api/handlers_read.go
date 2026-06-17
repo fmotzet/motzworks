@@ -69,7 +69,7 @@ func (s *Server) handleDevicesCSV(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSoftware(w http.ResponseWriter, r *http.Request) {
-	rollup, err := s.store.SoftwareRollup(r.Context(), r.URL.Query().Get("q"), queryInt(r, "limit", 200))
+	rollup, err := s.store.SoftwareRollup(r.Context(), r.URL.Query().Get("q"), queryInt(r, "limit", 200), queryInt(r, "offset", 0))
 	if err != nil {
 		s.serverError(w, err)
 		return

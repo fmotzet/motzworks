@@ -262,10 +262,15 @@ type SoftwareAgg struct {
 	DeviceCount int    `json:"device_count"`
 }
 
-// SoftwareRollup aggregates installed software by name+version.
-func (s *Store) SoftwareRollup(ctx context.Context, query string, limit int) ([]SoftwareAgg, error) {
+// SoftwareRollup aggregates installed software by name+version, ordered by
+// popularity then name. limit/offset paginate the result; the ordering is fully
+// deterministic so successive offset pages don't drop or repeat rows.
+func (s *Store) SoftwareRollup(ctx context.Context, query string, limit, offset int) ([]SoftwareAgg, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
 	}
 	var b argBuilder
 	where := "1=1"
@@ -273,12 +278,13 @@ func (s *Store) SoftwareRollup(ctx context.Context, query string, limit int) ([]
 		where = "name ILIKE " + b.next("%"+q+"%")
 	}
 	lim := b.next(limit)
+	off := b.next(offset)
 	rows, err := s.pool.Query(ctx, `
 		SELECT name, COALESCE(version,''), count(DISTINCT device_id) AS device_count
 		FROM software WHERE `+where+`
 		GROUP BY name, version
-		ORDER BY device_count DESC, lower(name)
-		LIMIT `+lim, b.args...)
+		ORDER BY device_count DESC, lower(name), name, version
+		LIMIT `+lim+` OFFSET `+off, b.args...)
 	if err != nil {
 		return nil, err
 	}

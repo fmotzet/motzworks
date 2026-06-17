@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api, Stats, DeviceItem, DeviceDetail, SoftwareAgg, ChangeRow, ScanRow, ScanDetail,
   ScanTarget, Credential, Schedule,
@@ -339,10 +339,61 @@ function KV({ k, v }: { k: string; v: any }) {
 
 // ---- Software ----
 
+const SOFTWARE_PAGE = 100;
+
 export function Software() {
   const [q, setQ] = useState("");
-  const { data, error } = useFetch<{ items: SoftwareAgg[] }>(`/api/software?q=${encodeURIComponent(q)}&limit=300`, [q]);
-  const items = data?.items ?? [];
+  const [items, setItems] = useState<SoftwareAgg[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const sentinel = useRef<HTMLTableRowElement | null>(null);
+
+  // Track the live offset so the IntersectionObserver always requests the next
+  // page without re-subscribing on every append.
+  const offset = useRef(0);
+  const busy = useRef(false);
+
+  const loadMore = useCallback(async (query: string, reset: boolean) => {
+    if (busy.current) return;
+    busy.current = true;
+    setLoading(true);
+    setError(null);
+    const from = reset ? 0 : offset.current;
+    try {
+      const data = await api.get<{ items: SoftwareAgg[] }>(
+        `/api/software?q=${encodeURIComponent(query)}&limit=${SOFTWARE_PAGE}&offset=${from}`,
+      );
+      const batch = data.items ?? [];
+      offset.current = from + batch.length;
+      setItems((prev) => (reset ? batch : [...prev, ...batch]));
+      setDone(batch.length < SOFTWARE_PAGE);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      busy.current = false;
+      setLoading(false);
+    }
+  }, []);
+
+  // Reset and load the first page whenever the search term changes.
+  useEffect(() => {
+    setDone(false);
+    offset.current = 0;
+    loadMore(q, true);
+  }, [q, loadMore]);
+
+  // Load the next page when the sentinel row scrolls into view.
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || done) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) loadMore(q, false);
+    }, { rootMargin: "200px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [q, done, loadMore, items.length]);
+
   return (
     <div>
       <h1>Software</h1>
@@ -356,7 +407,8 @@ export function Software() {
           {items.map((s, idx) => (
             <tr key={idx}><td>{s.name}</td><td>{s.version || "—"}</td><td>{s.device_count}</td></tr>
           ))}
-          {items.length === 0 && <tr><td colSpan={3} className="muted">No software.</td></tr>}
+          {items.length === 0 && !loading && <tr><td colSpan={3} className="muted">No software.</td></tr>}
+          {!done && <tr ref={sentinel}><td colSpan={3} className="muted">{loading ? "Loading…" : ""}</td></tr>}
         </tbody>
       </table>
     </div>
