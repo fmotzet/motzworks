@@ -8,8 +8,9 @@ import (
 	"github.com/stock3/motzworks/internal/model"
 )
 
-// parseOSRelease extracts name, version and family from /etc/os-release content.
-func parseOSRelease(content string) (name, version, family string) {
+// parseOSRelease extracts name, version and the lowercased ID from
+// /etc/os-release content.
+func parseOSRelease(content string) (name, version, id string) {
 	kv := map[string]string{}
 	for _, line := range strings.Split(content, "\n") {
 		line = strings.TrimSpace(line)
@@ -24,8 +25,8 @@ func parseOSRelease(content string) (name, version, family string) {
 		name = kv["NAME"]
 	}
 	version = kv["VERSION_ID"]
-	family = "linux"
-	return name, version, family
+	id = strings.ToLower(kv["ID"])
+	return name, version, id
 }
 
 // parseTabbed parses "name<TAB>version" lines (dpkg-query / rpm output).

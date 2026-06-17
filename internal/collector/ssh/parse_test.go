@@ -7,15 +7,15 @@ func TestParseOSRelease(t *testing.T) {
 VERSION_ID="22.04"
 PRETTY_NAME="Ubuntu 22.04.3 LTS"
 ID=ubuntu`
-	name, version, family := parseOSRelease(content)
+	name, version, id := parseOSRelease(content)
 	if name != "Ubuntu 22.04.3 LTS" {
 		t.Errorf("name = %q", name)
 	}
 	if version != "22.04" {
 		t.Errorf("version = %q", version)
 	}
-	if family != "linux" {
-		t.Errorf("family = %q", family)
+	if id != "ubuntu" {
+		t.Errorf("id = %q", id)
 	}
 }
 

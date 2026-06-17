@@ -103,47 +103,36 @@ func (c *Collector) Collect(ctx context.Context, t collector.Target) (collector.
 
 	osRel := run("cat /etc/os-release 2>/dev/null")
 	raw["os_release"] = osRel
-	name, version, family := parseOSRelease(osRel)
-	dev.OS = &model.OSInfo{
-		Family:  family,
+	name, version, id := parseOSRelease(osRel)
+	facts := osFacts{
+		ID:      id,
 		Name:    name,
 		Version: version,
-		Build:   firstLine(run("uname -r")),
+		Kernel:  firstLine(run("uname -r")),
 		Arch:    firstLine(run("uname -m")),
+		Uname:   firstLine(run("uname -s")),
 	}
-	if dev.OS.Family == "" {
-		dev.OS.Family = "linux"
+	dev.Type = typeFor(facts)
+	dev.OS = &model.OSInfo{
+		Family:  familyFor(facts),
+		Name:    name,
+		Version: version,
+		Build:   facts.Kernel,
+		Arch:    facts.Arch,
 	}
 
 	dev.Interfaces = parseIPLink(run("ip -o link show 2>/dev/null"))
 	applyIPAddrs(dev.Interfaces, run("ip -o addr show 2>/dev/null"))
 
-	dev.Software = collectSoftware(run)
+	// OS-specific software collection (see profile.go / profile_*.go).
+	prof := selectProfile(facts)
+	raw["profile"] = prof.Name()
+	dev.Software = prof.Software(run)
+
 	dev.Users = parsePasswd(run("getent passwd 2>/dev/null || cat /etc/passwd"), c.MinUID)
 	dev.Hardware = collectHardware(run)
 
 	return collector.Result{Target: t, Device: dev, Raw: raw}, nil
-}
-
-// collectSoftware tries dpkg, then rpm, then apk, using the first that returns
-// any packages.
-func collectSoftware(run func(string) string) []model.Software {
-	if out := run(`command -v dpkg-query >/dev/null 2>&1 && dpkg-query -W -f='${Package}\t${Version}\n' 2>/dev/null`); out != "" {
-		if sw := parseTabbed(out); len(sw) > 0 {
-			return sw
-		}
-	}
-	if out := run(`command -v rpm >/dev/null 2>&1 && rpm -qa --qf '%{NAME}\t%{VERSION}-%{RELEASE}\n' 2>/dev/null`); out != "" {
-		if sw := parseTabbed(out); len(sw) > 0 {
-			return sw
-		}
-	}
-	if out := run(`command -v apk >/dev/null 2>&1 && apk info -v 2>/dev/null`); out != "" {
-		if sw := parseApk(out); len(sw) > 0 {
-			return sw
-		}
-	}
-	return nil
 }
 
 // collectHardware reads DMI/proc files. Serial/model often require root and may
