@@ -22,7 +22,8 @@ import (
 //	22   ssh        135  msrpc      139/445 smb     161 (udp, separate)
 //	443  https      3389 rdp        5985/5986 winrm 8006 proxmox
 //	9100 jetdirect  631  ipp        515  lpd        80   http
-var DefaultTCPPorts = []int{22, 80, 135, 139, 443, 445, 515, 631, 3389, 5985, 5986, 8006, 9100}
+//	49000 TR-064 (AVM FRITZ!Box gateway)
+var DefaultTCPPorts = []int{22, 80, 135, 139, 443, 445, 515, 631, 3389, 5985, 5986, 8006, 9100, 49000}
 
 // Host is a discovered live host and the ports found open on it.
 type Host struct {
