@@ -57,6 +57,9 @@ type VaultConfig struct {
 // ScanConfig holds scan engine defaults.
 type ScanConfig struct {
 	Concurrency int `yaml:"concurrency"`
+	// Politeness for scheduled scans (0 = disabled).
+	RatePerSec int `yaml:"rate_per_sec"` // max hosts probed per second
+	JitterMs   int `yaml:"jitter_ms"`    // random pre-probe delay, milliseconds
 }
 
 // AuthConfig configures dashboard/API authentication.

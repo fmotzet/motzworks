@@ -46,9 +46,18 @@ type Target struct {
 // Result is the normalized output of collecting from one target. Raw holds the
 // untouched collector payload for audit/debugging and is persisted as JSONB.
 type Result struct {
-	Target Target
+	Target  Target
+	Device  model.Device
+	Raw     map[string]any
+	Related []Related // additional devices discovered via this target
+}
+
+// Related is an additional device discovered through the primary target — e.g.
+// a VM enumerated from its hypervisor — to be linked to the primary device by a
+// relationship of the given Kind (e.g. "hosts-vm").
+type Related struct {
 	Device model.Device
-	Raw    map[string]any
+	Kind   string
 }
 
 // Collector gathers inventory from a single class of device.

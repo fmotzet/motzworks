@@ -31,10 +31,17 @@ func cmdScan(args []string) error {
 	snmpCommunity := fs.String("snmp-community", "", "SNMPv2c community string")
 	winrmUser := fs.String("winrm-user", "", "WinRM username")
 	winrmPass := fs.String("winrm-pass", "", "WinRM password")
+	proxmoxToken := fs.String("proxmox-token", "", "Proxmox API token id (user@realm!tokenid)")
+	proxmoxSecret := fs.String("proxmox-secret", "", "Proxmox API token secret (UUID)")
+	opnsenseKey := fs.String("opnsense-key", "", "OPNsense API key")
+	opnsenseSecret := fs.String("opnsense-secret", "", "OPNsense API secret")
+	fortigateToken := fs.String("fortigate-token", "", "FortiGate API token")
 
 	timeout := fs.Duration("timeout", 2*time.Second, "per-connection probe timeout")
 	discoverConc := fs.Int("discover-concurrency", 256, "discovery concurrency")
 	collectConc := fs.Int("collect-concurrency", 32, "collection concurrency")
+	rate := fs.Int("rate", 0, "max hosts probed per second (0 = unlimited)")
+	jitter := fs.Duration("jitter", 0, "random delay before each host probe (e.g. 50ms)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -56,6 +63,9 @@ func cmdScan(args []string) error {
 	creds, err := buildCredentials(credFlags{
 		sshUser: *sshUser, sshPass: *sshPass, sshKey: *sshKey,
 		snmpCommunity: *snmpCommunity, winrmUser: *winrmUser, winrmPass: *winrmPass,
+		proxmoxToken: *proxmoxToken, proxmoxSecret: *proxmoxSecret,
+		opnsenseKey: *opnsenseKey, opnsenseSecret: *opnsenseSecret,
+		fortigateToken: *fortigateToken,
 	})
 	if err != nil {
 		return err
@@ -79,6 +89,8 @@ func cmdScan(args []string) error {
 			TCPPorts:    tcpPorts,
 			Timeout:     *timeout,
 			Concurrency: *discoverConc,
+			RatePerSec:  *rate,
+			Jitter:      *jitter,
 		},
 		CollectWorkers: *collectConc,
 	}
@@ -95,9 +107,12 @@ func cmdScan(args []string) error {
 }
 
 type credFlags struct {
-	sshUser, sshPass, sshKey string
-	snmpCommunity            string
-	winrmUser, winrmPass     string
+	sshUser, sshPass, sshKey    string
+	snmpCommunity               string
+	winrmUser, winrmPass        string
+	proxmoxToken, proxmoxSecret string
+	opnsenseKey, opnsenseSecret string
+	fortigateToken              string
 }
 
 // buildCredentials turns scan flags into collector credentials. (Phase 2 will
@@ -121,6 +136,15 @@ func buildCredentials(f credFlags) ([]collector.Credential, error) {
 	}
 	if f.winrmUser != "" {
 		creds = append(creds, collector.Credential{Kind: "winrm", Username: f.winrmUser, Secret: f.winrmPass})
+	}
+	if f.proxmoxToken != "" {
+		creds = append(creds, collector.Credential{Kind: "proxmox-token", Username: f.proxmoxToken, Secret: f.proxmoxSecret})
+	}
+	if f.opnsenseKey != "" {
+		creds = append(creds, collector.Credential{Kind: "opnsense-api", Username: f.opnsenseKey, Secret: f.opnsenseSecret})
+	}
+	if f.fortigateToken != "" {
+		creds = append(creds, collector.Credential{Kind: "fortigate-token", Secret: f.fortigateToken})
 	}
 	return creds, nil
 }

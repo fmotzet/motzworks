@@ -21,13 +21,16 @@ type Collector struct {
 	log      *slog.Logger
 	Port     int
 	UseHTTPS bool
-	Insecure bool // skip TLS verification (self-signed WinRM certs)
+	Insecure bool   // skip TLS verification (self-signed WinRM certs)
+	Auth     string // "ntlm" (default) or "basic"
 	Timeout  time.Duration
 }
 
-// New returns a WinRM collector with sensible defaults (HTTP/5985).
+// New returns a WinRM collector with sensible defaults (HTTP/5985, NTLM).
+// NTLM is the default because Windows disables Basic auth out of the box and
+// NTLM encrypts the SOAP payload over plain HTTP, so 5986/HTTPS isn't required.
 func New(log *slog.Logger) *Collector {
-	return &Collector{log: log, Port: 5985, Timeout: 30 * time.Second}
+	return &Collector{log: log, Port: 5985, Auth: "ntlm", Timeout: 30 * time.Second}
 }
 
 func (c *Collector) Name() string { return "winrm" }
@@ -66,7 +69,14 @@ func (c *Collector) Collect(ctx context.Context, t collector.Target) (collector.
 	}
 
 	endpoint := winrm.NewEndpoint(t.Addr.String(), port, c.UseHTTPS, c.Insecure, nil, nil, nil, timeout)
-	client, err := winrm.NewClient(endpoint, cred.Username, cred.Secret)
+
+	params := winrm.NewParameters("PT60S", "en-US", 153600)
+	if c.Auth != "basic" {
+		// NTLM transport: required for domain accounts and any host with Basic
+		// auth disabled (the Windows default).
+		params.TransportDecorator = func() winrm.Transporter { return &winrm.ClientNTLM{} }
+	}
+	client, err := winrm.NewClientWithParameters(endpoint, cred.Username, cred.Secret, params)
 	if err != nil {
 		return collector.Result{}, fmt.Errorf("winrm client: %w", err)
 	}

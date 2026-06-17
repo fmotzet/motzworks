@@ -258,6 +258,20 @@ func replaceChildren(ctx context.Context, tx pgx.Tx, id string, d model.Device) 
 	return nil
 }
 
+// CreateRelationship records a parent→child relationship of the given kind,
+// ignoring duplicates.
+func (s *Store) CreateRelationship(ctx context.Context, parentID, childID, kind string) error {
+	if parentID == "" || childID == "" || parentID == childID {
+		return nil
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO relationship (parent_id, child_id, kind)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (parent_id, child_id, kind) DO NOTHING`,
+		parentID, childID, kind)
+	return err
+}
+
 // macsOf returns the non-empty interface MACs of a device.
 func macsOf(d model.Device) []string {
 	var macs []string

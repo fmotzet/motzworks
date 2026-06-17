@@ -8,7 +8,9 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/stock3/motzworks/internal/auth"
@@ -85,6 +87,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/credentials", s.admin(s.handleCreateCredential))
 	mux.Handle("DELETE /api/credentials/{id}", s.admin(s.handleDeleteCredential))
 	mux.Handle("POST /api/schedules", s.admin(s.handleCreateSchedule))
+	mux.Handle("GET /api/audit", s.admin(s.handleAudit))
 
 	// Unknown API routes → JSON 404 (more specific than the SPA catch-all).
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +176,26 @@ func claimsOf(r *http.Request) auth.Claims {
 	return c
 }
 
+// clientIP returns the best-effort client address (honoring X-Forwarded-For
+// when behind a reverse proxy).
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		return strings.TrimSpace(strings.Split(xff, ",")[0])
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+// audit records an action by the authenticated actor (best-effort; never blocks
+// the request on failure).
+func (s *Server) audit(r *http.Request, action, target string, detail map[string]any) {
+	if err := s.store.InsertAudit(r.Context(), claimsOf(r).Username, action, target, clientIP(r), detail); err != nil {
+		s.log.Warn("audit insert failed", "action", action, "err", err)
+	}
+}
+
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
@@ -183,6 +206,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := s.store.GetUserByUsername(r.Context(), req.Username)
 	if err != nil || !auth.CheckPassword(u.PasswordHash, req.Password) {
+		_ = s.store.InsertAudit(r.Context(), req.Username, "login_failed", "", clientIP(r), nil)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -201,6 +225,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Expires: exp,
 	})
 	_ = s.store.TouchLogin(r.Context(), u.ID)
+	_ = s.store.InsertAudit(r.Context(), u.Username, "login", "", clientIP(r), nil)
 	writeJSON(w, http.StatusOK, map[string]any{"username": u.Username, "role": u.Role})
 }
 

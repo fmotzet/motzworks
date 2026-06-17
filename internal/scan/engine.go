@@ -127,6 +127,7 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 		Source:    "discovery",
 	}
 
+	var related []collector.Related
 	for _, c := range e.reg.For(class) {
 		t := collector.Target{Addr: h.Addr, Hostname: h.Addr.String(), Class: class, Credentials: creds}
 		res, err := c.Collect(ctx, t)
@@ -136,6 +137,7 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 			continue
 		}
 		dev = mergeDevice(dev, res.Device, c.Name())
+		related = res.Related
 		hr.Collector = c.Name()
 		hr.CollectErr = ""
 		break
@@ -148,6 +150,18 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 	}
 	hr.DeviceID = id
 	hr.Changes = len(changes)
+
+	// Persist related devices (e.g. VMs) and link them to this device.
+	for _, rel := range related {
+		childID, _, err := e.store.UpsertDevice(ctx, rel.Device, runID)
+		if err != nil {
+			e.log.Warn("upsert related device failed", "parent", hr.Addr, "err", err)
+			continue
+		}
+		if err := e.store.CreateRelationship(ctx, id, childID, rel.Kind); err != nil {
+			e.log.Warn("create relationship failed", "parent", id, "child", childID, "err", err)
+		}
+	}
 	return hr
 }
 

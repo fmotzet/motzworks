@@ -23,6 +23,9 @@ vault:
 
 scan:
   concurrency: 64
+  # Politeness for scheduled scans of large networks (0 = unlimited):
+  rate_per_sec: 0   # cap hosts probed per second
+  jitter_ms: 0      # random delay before each host probe
 
 auth:
   # Signs session cookies. Best set via MOTZWORKS_AUTH_SECRET (a stable random

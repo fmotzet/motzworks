@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/stock3/motzworks/internal/discovery"
 	"github.com/stock3/motzworks/internal/scan"
 	"github.com/stock3/motzworks/internal/store"
 	"github.com/stock3/motzworks/internal/vault"
@@ -21,17 +22,23 @@ type Scheduler struct {
 	log         *slog.Logger
 	tick        time.Duration
 	concurrency int
+	ratePerSec  int
+	jitter      time.Duration
 }
 
-// New constructs a Scheduler. tick is how often to check for due schedules.
-func New(st *store.Store, eng *scan.Engine, v *vault.Vault, log *slog.Logger, tick time.Duration, concurrency int) *Scheduler {
+// New constructs a Scheduler. tick is how often to check for due schedules;
+// ratePerSec and jitter apply discovery politeness to scheduled scans.
+func New(st *store.Store, eng *scan.Engine, v *vault.Vault, log *slog.Logger, tick time.Duration, concurrency, ratePerSec int, jitter time.Duration) *Scheduler {
 	if tick <= 0 {
 		tick = 30 * time.Second
 	}
 	if concurrency <= 0 {
 		concurrency = 32
 	}
-	return &Scheduler{store: st, engine: eng, vault: v, log: log, tick: tick, concurrency: concurrency}
+	return &Scheduler{
+		store: st, engine: eng, vault: v, log: log, tick: tick,
+		concurrency: concurrency, ratePerSec: ratePerSec, jitter: jitter,
+	}
 }
 
 // Run blocks until ctx is cancelled, checking for due schedules each tick.
@@ -81,6 +88,10 @@ func (s *Scheduler) runDue(ctx context.Context) {
 			Credentials:    creds,
 			CollectWorkers: s.concurrency,
 			Probe:          scan.SNMPProbe(creds, s.concurrency, s.log),
+			Discovery: discovery.Options{
+				RatePerSec: s.ratePerSec,
+				Jitter:     s.jitter,
+			},
 		}
 		if _, err := s.engine.Run(ctx, opts); err != nil {
 			s.log.Error("scheduler: scan failed", "target", d.ScanTargetID, "err", err)

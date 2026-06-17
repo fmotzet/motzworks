@@ -66,7 +66,8 @@ func cmdServe(args []string) error {
 	registerCollectors(reg, log)
 	engine := scan.New(st, reg, log)
 
-	sched := scheduler.New(st, engine, v, log, 30*time.Second, cfg.Scan.Concurrency)
+	sched := scheduler.New(st, engine, v, log, 30*time.Second, cfg.Scan.Concurrency,
+		cfg.Scan.RatePerSec, time.Duration(cfg.Scan.JitterMs)*time.Millisecond)
 	go sched.Run(ctx)
 
 	static, err := web.Handler()

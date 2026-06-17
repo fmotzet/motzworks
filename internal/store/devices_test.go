@@ -148,6 +148,43 @@ func TestDedupByMAC(t *testing.T) {
 	}
 }
 
+func TestCreateRelationship(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+
+	hv, _, err := st.UpsertDevice(ctx, model.Device{Type: model.TypeHypervisor, Hostname: "pve1", Serial: "PVE-1"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vm, _, err := st.UpsertDevice(ctx, model.Device{Type: model.TypeVM, Hostname: "web01", Serial: "VM-1"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := st.CreateRelationship(ctx, hv, vm, "hosts-vm"); err != nil {
+		t.Fatalf("create relationship: %v", err)
+	}
+	// Idempotent (ON CONFLICT DO NOTHING).
+	if err := st.CreateRelationship(ctx, hv, vm, "hosts-vm"); err != nil {
+		t.Fatalf("duplicate relationship: %v", err)
+	}
+
+	var n int
+	if err := st.pool.QueryRow(ctx,
+		"SELECT count(*) FROM relationship WHERE parent_id=$1 AND child_id=$2 AND kind='hosts-vm'", hv, vm,
+	).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("expected 1 relationship row, got %d", n)
+	}
+
+	// Self-relationship and empty ids are no-ops, not errors.
+	if err := st.CreateRelationship(ctx, hv, hv, "x"); err != nil {
+		t.Errorf("self relationship should be a no-op: %v", err)
+	}
+}
+
 func TestChildrenReplaced(t *testing.T) {
 	st := testStore(t)
 	ctx := context.Background()

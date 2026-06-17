@@ -57,7 +57,18 @@ func (s *Server) handleTriggerScan(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	s.audit(r, "trigger_scan", req.TargetID, map[string]any{"targets": specs})
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "scan started"})
+}
+
+// handleAudit lists recent audit entries (admin).
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	entries, err := s.store.ListAudit(r.Context(), queryInt(r, "limit", 100))
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": entries})
 }
 
 // ---- scan targets ----
@@ -93,14 +104,17 @@ func (s *Server) handleCreateTarget(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	s.audit(r, "create_target", req.Name, map[string]any{"cidrs": req.CIDRs})
 	writeJSON(w, http.StatusCreated, map[string]string{"id": id})
 }
 
 func (s *Server) handleDeleteTarget(w http.ResponseWriter, r *http.Request) {
-	if err := s.store.DeleteScanTarget(r.Context(), r.PathValue("id")); err != nil {
+	id := r.PathValue("id")
+	if err := s.store.DeleteScanTarget(r.Context(), id); err != nil {
 		s.serverError(w, err)
 		return
 	}
+	s.audit(r, "delete_target", id, nil)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
@@ -144,14 +158,18 @@ func (s *Server) handleCreateCredential(w http.ResponseWriter, r *http.Request) 
 		s.serverError(w, err)
 		return
 	}
+	// Never log the secret — only metadata.
+	s.audit(r, "create_credential", req.Name, map[string]any{"kind": req.Kind, "username": req.Username})
 	writeJSON(w, http.StatusCreated, map[string]string{"id": id})
 }
 
 func (s *Server) handleDeleteCredential(w http.ResponseWriter, r *http.Request) {
-	if err := s.store.DeleteCredential(r.Context(), r.PathValue("id")); err != nil {
+	id := r.PathValue("id")
+	if err := s.store.DeleteCredential(r.Context(), id); err != nil {
 		s.serverError(w, err)
 		return
 	}
+	s.audit(r, "delete_credential", id, nil)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
@@ -188,5 +206,6 @@ func (s *Server) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	s.audit(r, "create_schedule", req.ScanTargetID, map[string]any{"interval_secs": req.IntervalSecs})
 	writeJSON(w, http.StatusCreated, map[string]string{"id": id})
 }

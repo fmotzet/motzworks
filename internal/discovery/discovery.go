@@ -7,6 +7,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 	"strconv"
@@ -44,6 +45,10 @@ type Options struct {
 	TCPPorts    []int
 	Timeout     time.Duration // per-connection timeout
 	Concurrency int           // hosts probed concurrently
+
+	// Politeness controls for large networks (0 = disabled):
+	RatePerSec int           // global cap on hosts probed per second
+	Jitter     time.Duration // random delay [0,Jitter) before each host probe
 }
 
 func (o Options) withDefaults() Options {
@@ -130,10 +135,17 @@ func parseRange(spec string) (lo, hi netip.Addr, err error) {
 func Discover(ctx context.Context, addrs []netip.Addr, opts Options) []Host {
 	opts = opts.withDefaults()
 
+	lim := newLimiter(opts.RatePerSec)
+	defer lim.close()
+
 	jobs := make([]worker.Job[Host], len(addrs))
 	for i, a := range addrs {
 		a := a
 		jobs[i] = func(ctx context.Context) (Host, error) {
+			lim.wait(ctx)
+			if opts.Jitter > 0 {
+				sleep(ctx, time.Duration(rand.Int64N(int64(opts.Jitter))))
+			}
 			return probe(ctx, a, opts), nil
 		}
 	}
@@ -146,6 +158,66 @@ func Discover(ctx context.Context, addrs []netip.Addr, opts Options) []Host {
 		}
 	}
 	return live
+}
+
+// sleep waits for d or until ctx is cancelled.
+func sleep(ctx context.Context, d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+	case <-ctx.Done():
+	}
+}
+
+// limiter is a simple token-bucket rate limiter shared across discovery workers.
+type limiter struct {
+	tokens chan struct{}
+	stop   chan struct{}
+}
+
+// newLimiter returns a limiter emitting perSec tokens per second, or nil
+// (unlimited) when perSec <= 0.
+func newLimiter(perSec int) *limiter {
+	if perSec <= 0 {
+		return nil
+	}
+	l := &limiter{tokens: make(chan struct{}, perSec), stop: make(chan struct{})}
+	go func() {
+		t := time.NewTicker(time.Second / time.Duration(perSec))
+		defer t.Stop()
+		for {
+			select {
+			case <-l.stop:
+				return
+			case <-t.C:
+				select {
+				case l.tokens <- struct{}{}:
+				default: // bucket full
+				}
+			}
+		}
+	}()
+	return l
+}
+
+func (l *limiter) wait(ctx context.Context) {
+	if l == nil {
+		return
+	}
+	select {
+	case <-l.tokens:
+	case <-ctx.Done():
+	}
+}
+
+func (l *limiter) close() {
+	if l != nil {
+		close(l.stop)
+	}
 }
 
 func probe(ctx context.Context, a netip.Addr, opts Options) Host {

@@ -9,7 +9,41 @@ See [PLAN.md](PLAN.md) for the full architecture and roadmap.
 
 ## Status
 
-**Phase 2 — Scheduler + API + dashboards.** On top of Phase 1, the scanner now
+**Phase 4 — Hardening (in progress).** Distributed collectors were descoped
+(single-scanner deployment), so this phase is security/scale hardening:
+
+- **Audit log** — `audit_log` table recording logins, login failures, logouts
+  and admin mutations (credentials/targets/schedules/scan triggers), with
+  actor + client IP; secrets are never logged. Admin API: `GET /api/audit`.
+- **Scan politeness** — discovery rate limiting (`-rate` / `scan.rate_per_sec`)
+  and per-host jitter (`-jitter` / `scan.jitter_ms`) for large networks, applied
+  to both ad-hoc and scheduled scans.
+
+**Phase 3 — Integrations.** Added vendor/API collectors and a
+Zabbix integration path:
+
+- **Proxmox VE** — inventories the hypervisor and enumerates its VMs/containers
+  as child devices linked by a `hosts-vm` relationship.
+- **OPNsense** and **FortiGate** — REST/API collectors (firmware, version,
+  model, serial), self-identifying so they only claim hosts that match.
+- **Zabbix** — stable, denormalized SQL **views** (`zbx_host_inventory`,
+  `zbx_device_software`, `zbx_scan_status`) for Zabbix to pull from PostgreSQL
+  directly (ODBC "Database monitor" items / SQL data source).
+- Collector results can now carry **related devices + relationships**, persisted
+  by the engine.
+
+New scan credentials: `-proxmox-token`/`-proxmox-secret`, `-opnsense-key`/
+`-opnsense-secret`, `-fortigate-token` (and the matching credential `kind`s in
+the vault/API).
+
+> Live-validated so far: discovery, SSH, SNMP, the API, dashboards, scheduler,
+> Zabbix views. The Proxmox/OPNsense/FortiGate collectors and WinRM are
+> implemented with parser unit tests but await validation against live targets.
+> Active Directory (LDAP) is deferred until the firewall opens 389/636 to the DC.
+
+### Phase 2 — Scheduler + API + dashboards
+
+On top of Phase 1, the scanner now
 serves a web dashboard and REST API, with authenticated admin access and
 recurring scans:
 

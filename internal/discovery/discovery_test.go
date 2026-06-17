@@ -79,6 +79,46 @@ func TestDiscover(t *testing.T) {
 	}
 }
 
+func TestDiscoverWithPoliteness(t *testing.T) {
+	// Rate limiting + jitter must not change correctness.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	live := Discover(context.Background(), []netip.Addr{netip.MustParseAddr("127.0.0.1")},
+		Options{TCPPorts: []int{port}, Timeout: time.Second, Concurrency: 4,
+			RatePerSec: 1000, Jitter: 2 * time.Millisecond})
+	if len(live) != 1 || !live[0].HasPort(port) {
+		t.Fatalf("expected open port %d with politeness on, got %v", port, live)
+	}
+}
+
+func TestLimiterRate(t *testing.T) {
+	// A 50/sec limiter should take at least ~40ms to release 3 tokens.
+	lim := newLimiter(50)
+	defer lim.close()
+	ctx := context.Background()
+	start := time.Now()
+	for i := 0; i < 3; i++ {
+		lim.wait(ctx)
+	}
+	if elapsed := time.Since(start); elapsed < 30*time.Millisecond {
+		t.Errorf("3 tokens released in %v, expected rate limiting to slow it", elapsed)
+	}
+}
+
 func TestDiscoverNoneAlive(t *testing.T) {
 	// Port 1 on a documentation-range address should never connect quickly.
 	addr := netip.MustParseAddr("192.0.2.1")
