@@ -9,7 +9,41 @@ See [PLAN.md](PLAN.md) for the full architecture and roadmap.
 
 ## Status
 
-**Phase 1 — Discovery + core collectors.** On top of the Phase 0 foundation
+**Phase 2 — Scheduler + API + dashboards.** On top of Phase 1, the scanner now
+serves a web dashboard and REST API, with authenticated admin access and
+recurring scans:
+
+- **Auth + RBAC** — local accounts, bcrypt passwords, HMAC-signed session
+  cookies, `admin`/`viewer` roles.
+- **REST API** — devices (search/filter/paginate), device detail, software
+  rollups, change timeline, scan history, dashboard stats, CSV export.
+- **Admin API** — manage scan targets, vault-sealed credentials and schedules;
+  trigger ad-hoc scans.
+- **Scheduler** — background loop runs due schedules using stored credentials.
+- **Dashboard** — embedded React/TS SPA (single binary): dashboard, devices,
+  device detail, software, changes, scans, and an admin panel.
+
+```sh
+# One-time setup
+export MOTZWORKS_VAULT_KEY="$(motzworks vault genkey)"   # keep this stable
+export MOTZWORKS_AUTH_SECRET="$(openssl rand -base64 32)" # stable session secret
+motzworks migrate up
+motzworks user add -username admin -password '<pw>' -role admin
+
+# Run API + scheduler + dashboard
+motzworks serve            # http://localhost:8080
+```
+
+Building the dashboard from source:
+
+```sh
+cd web/ui && npm install && npm run build   # outputs to internal/web/dist
+# during UI development: `npm run dev` (proxies /api to :8080), `motzworks serve` separately
+```
+
+### Phase 1 recap
+
+On top of the Phase 0 foundation
 (config, logging, schema/migrations, vault, worker pool), the scanner now does:
 
 - **Discovery** — expand CIDRs / IPs / ranges, TCP-connect liveness probing, plus

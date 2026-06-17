@@ -18,6 +18,7 @@ type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Vault    VaultConfig    `yaml:"vault"`
 	Scan     ScanConfig     `yaml:"scan"`
+	Auth     AuthConfig     `yaml:"auth"`
 }
 
 // LogConfig controls structured logging output.
@@ -58,6 +59,16 @@ type ScanConfig struct {
 	Concurrency int `yaml:"concurrency"`
 }
 
+// AuthConfig configures dashboard/API authentication.
+type AuthConfig struct {
+	// Secret signs session cookies. Best supplied via MOTZWORKS_AUTH_SECRET.
+	// If empty, a random secret is generated at startup (sessions reset on
+	// restart).
+	Secret string `yaml:"secret"`
+	// SessionHours is the session lifetime in hours.
+	SessionHours int `yaml:"session_hours"`
+}
+
 // Default returns a Config populated with sensible defaults.
 func Default() Config {
 	return Config{
@@ -69,6 +80,7 @@ func Default() Config {
 		Server: ServerConfig{Addr: ":8080"},
 		Vault:  VaultConfig{KeyEnv: "MOTZWORKS_VAULT_KEY"},
 		Scan:   ScanConfig{Concurrency: 64},
+		Auth:   AuthConfig{SessionHours: 12},
 	}
 }
 
@@ -119,6 +131,9 @@ func (c *Config) applyEnv() {
 	}
 	if v := os.Getenv("MOTZWORKS_LOG_LEVEL"); v != "" {
 		c.Log.Level = v
+	}
+	if v := os.Getenv("MOTZWORKS_AUTH_SECRET"); v != "" {
+		c.Auth.Secret = v
 	}
 }
 

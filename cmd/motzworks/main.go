@@ -29,6 +29,10 @@ func main() {
 		err = cmdMigrate(args)
 	case "scan":
 		err = cmdScan(args)
+	case "serve":
+		err = cmdServe(args)
+	case "user":
+		err = cmdUser(args)
 	case "vault":
 		err = cmdVault(args)
 	case "help", "-h", "--help":
@@ -56,6 +60,8 @@ Commands:
   config check         Load and validate a config file
   migrate up           Apply pending database migrations
   scan                 Discover and inventory hosts (-targets <cidr,...>)
+  serve                Run the API server, scheduler and web dashboard
+  user add             Create or update a dashboard user
   vault genkey         Generate a new base64 vault key
   help                 Show this help
 

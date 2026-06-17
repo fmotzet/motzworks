@@ -5,14 +5,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/netip"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/stock3/motzworks/internal/collector"
-	"github.com/stock3/motzworks/internal/collector/snmp"
 	"github.com/stock3/motzworks/internal/config"
 	"github.com/stock3/motzworks/internal/discovery"
 	"github.com/stock3/motzworks/internal/logging"
@@ -86,12 +84,7 @@ func cmdScan(args []string) error {
 	}
 	// When an SNMP community is supplied, also probe UDP/161 during discovery
 	// so network-only gear (no open TCP ports) is found.
-	if cr, ok := snmpCredential(creds); ok {
-		probe := snmp.New(log)
-		opts.Probe = func(ctx context.Context, addrs []netip.Addr) []discovery.Host {
-			return probe.Probe(ctx, addrs, cr, *discoverConc)
-		}
-	}
+	opts.Probe = scan.SNMPProbe(creds, *discoverConc, log)
 	sum, err := eng.Run(ctx, opts)
 	if err != nil {
 		return err
@@ -130,16 +123,6 @@ func buildCredentials(f credFlags) ([]collector.Credential, error) {
 		creds = append(creds, collector.Credential{Kind: "winrm", Username: f.winrmUser, Secret: f.winrmPass})
 	}
 	return creds, nil
-}
-
-// snmpCredential returns the first SNMP credential in the set, if any.
-func snmpCredential(creds []collector.Credential) (collector.Credential, bool) {
-	for _, c := range creds {
-		if c.Kind == "snmp-v2c" || c.Kind == "snmp-v3" {
-			return c, true
-		}
-	}
-	return collector.Credential{}, false
 }
 
 func parsePorts(s string) ([]int, error) {

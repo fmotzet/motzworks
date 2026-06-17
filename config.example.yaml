@@ -24,6 +24,12 @@ vault:
 scan:
   concurrency: 64
 
+auth:
+  # Signs session cookies. Best set via MOTZWORKS_AUTH_SECRET (a stable random
+  # value). If empty, an ephemeral secret is used and sessions reset on restart.
+  secret: ""
+  session_hours: 12
+
 # Environment overrides:
 #   MOTZWORKS_DB_HOST, MOTZWORKS_DB_PORT, MOTZWORKS_DB_USER,
 #   MOTZWORKS_DB_PASSWORD, MOTZWORKS_DB_NAME, MOTZWORKS_DB_SSLMODE,

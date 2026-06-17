@@ -8,9 +8,11 @@ config.yaml
 .env
 *.key
 
-# Frontend (later phases)
+# Frontend
 node_modules/
-dist/
+# Vite caches; the built dashboard (internal/web/dist) IS committed so the
+# Go binary always has assets to embed.
+web/ui/.vite/
 
 # Editor/OS
 .DS_Store
