@@ -98,6 +98,18 @@ tbody tr.clickable:hover { background: var(--panel2); }
 .bar-fill { display: block; height: 100%; background: var(--accent); }
 .bar-value { text-align: right; color: var(--muted); }
 
+.collapsible-header {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none; margin: 0;
+}
+.collapsible-header:hover { color: var(--text); }
+.collapsible-header .chevron { color: var(--accent); width: 12px; display: inline-block; }
+.collapsible-header .count {
+  margin-left: auto; background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1px 9px; font-size: 12px; color: var(--text);
+}
+.section-search { width: 100%; margin: 12px 0; }
+
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .kv:last-child { border-bottom: none; }

@@ -70,7 +70,7 @@ func (e *Engine) Run(ctx context.Context, opts Options) (Summary, error) {
 		return Summary{}, err
 	}
 
-	runID, err := e.store.CreateScanRun(ctx, nil)
+	runID, err := e.store.CreateScanRun(ctx, nil, opts.Specs)
 	if err != nil {
 		return Summary{}, err
 	}

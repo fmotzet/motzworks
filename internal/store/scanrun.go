@@ -3,12 +3,15 @@ package store
 import "context"
 
 // CreateScanRun starts a scan_run row and returns its id. scanTargetID may be
-// nil for ad-hoc CLI scans not tied to a stored target.
-func (s *Store) CreateScanRun(ctx context.Context, scanTargetID *string) (string, error) {
+// nil for ad-hoc scans; specs are the CIDR/IP/range strings being scanned.
+func (s *Store) CreateScanRun(ctx context.Context, scanTargetID *string, specs []string) (string, error) {
+	if specs == nil {
+		specs = []string{}
+	}
 	var id string
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO scan_run (scan_target_id, status) VALUES ($1, 'running') RETURNING id`,
-		scanTargetID,
+		`INSERT INTO scan_run (scan_target_id, status, targets) VALUES ($1, 'running', $2) RETURNING id`,
+		scanTargetID, specs,
 	).Scan(&id)
 	return id, err
 }

@@ -344,15 +344,16 @@ type ScanRow struct {
 	StartedAt  time.Time  `json:"started_at"`
 	FinishedAt *time.Time `json:"finished_at"`
 	Status     string     `json:"status"`
+	Targets    []string   `json:"targets"`
 	Discovered int        `json:"discovered"`
 	HostsFound int        `json:"hosts_found"`
 	Error      string     `json:"error"`
 }
 
-const scanRowCols = `id, started_at, finished_at, status, discovered, hosts_found, COALESCE(error,'')`
+const scanRowCols = `id, started_at, finished_at, status, targets, discovered, hosts_found, COALESCE(error,'')`
 
 func scanScan(row interface{ Scan(...any) error }, r *ScanRow) error {
-	return row.Scan(&r.ID, &r.StartedAt, &r.FinishedAt, &r.Status, &r.Discovered, &r.HostsFound, &r.Error)
+	return row.Scan(&r.ID, &r.StartedAt, &r.FinishedAt, &r.Status, &r.Targets, &r.Discovered, &r.HostsFound, &r.Error)
 }
 
 // ListScans returns recent scan runs.

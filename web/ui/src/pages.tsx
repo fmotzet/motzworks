@@ -46,6 +46,64 @@ function Section({ title, children }: { title: string; children: any }) {
   );
 }
 
+interface Column<T> {
+  header: string;
+  cell: (item: T) => any;
+}
+
+// CollapsibleTable renders a card whose body (a searchable table) is hidden
+// until the header is clicked. Collapsed by default so long lists
+// (interfaces/software/users) don't make the page scroll forever.
+function CollapsibleTable<T,>({
+  title, items, columns, searchText, searchPlaceholder,
+}: {
+  title: string;
+  items: T[];
+  columns: Column<T>[];
+  searchText: (item: T) => string;
+  searchPlaceholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const filtered = needle ? items.filter((i) => searchText(i).toLowerCase().includes(needle)) : items;
+
+  return (
+    <section className="card">
+      <h2 className="collapsible-header" onClick={() => setOpen((o) => !o)}>
+        <span className="chevron">{open ? "▾" : "▸"}</span>
+        {title}
+        <span className="count">{items.length}</span>
+      </h2>
+      {open && (
+        <>
+          <input
+            className="section-search"
+            placeholder={searchPlaceholder || "Search…"}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            autoFocus
+          />
+          <table>
+            <thead><tr>{columns.map((c, i) => <th key={i}>{c.header}</th>)}</tr></thead>
+            <tbody>
+              {filtered.map((item, idx) => (
+                <tr key={idx}>{columns.map((c, i) => <td key={i}>{c.cell(item)}</td>)}</tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={columns.length} className="muted">{needle ? "No matches." : "None"}</td></tr>
+              )}
+            </tbody>
+          </table>
+          {needle && (
+            <div className="muted small">{filtered.length} of {items.length} shown</div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function ErrorBox({ error }: { error: string | null }) {
   if (!error) return null;
   return <div className="error">{error}</div>;
@@ -231,42 +289,42 @@ export function DeviceDetailPage({ id }: { id: string }) {
         )}
       </div>
 
-      <Section title={`Interfaces (${interfaces.length})`}>
-        <table>
-          <thead><tr><th>Name</th><th>MAC</th><th>IP</th><th>Speed</th></tr></thead>
-          <tbody>
-            {interfaces.map((i, idx) => (
-              <tr key={idx}><td>{i.name}</td><td>{i.mac || "—"}</td><td>{i.ip || "—"}</td>
-                <td>{i.speed_mbps ? `${i.speed_mbps} Mbps` : "—"}</td></tr>
-            ))}
-            {interfaces.length === 0 && <tr><td colSpan={4} className="muted">None</td></tr>}
-          </tbody>
-        </table>
-      </Section>
+      <CollapsibleTable
+        title="Interfaces"
+        items={interfaces}
+        columns={[
+          { header: "Name", cell: (i) => i.name },
+          { header: "MAC", cell: (i) => i.mac || "—" },
+          { header: "IP", cell: (i) => i.ip || "—" },
+          { header: "Speed", cell: (i) => (i.speed_mbps ? `${i.speed_mbps} Mbps` : "—") },
+        ]}
+        searchText={(i) => `${i.name} ${i.mac} ${i.ip}`}
+        searchPlaceholder="Search interfaces by name / MAC / IP…"
+      />
 
-      <Section title={`Software (${software.length})`}>
-        <table>
-          <thead><tr><th>Name</th><th>Version</th><th>Vendor</th></tr></thead>
-          <tbody>
-            {software.map((s, idx) => (
-              <tr key={idx}><td>{s.name}</td><td>{s.version || "—"}</td><td>{s.vendor || "—"}</td></tr>
-            ))}
-            {software.length === 0 && <tr><td colSpan={3} className="muted">None</td></tr>}
-          </tbody>
-        </table>
-      </Section>
+      <CollapsibleTable
+        title="Software"
+        items={software}
+        columns={[
+          { header: "Name", cell: (s) => s.name },
+          { header: "Version", cell: (s) => s.version || "—" },
+          { header: "Vendor", cell: (s) => s.vendor || "—" },
+        ]}
+        searchText={(s) => `${s.name} ${s.version} ${s.vendor}`}
+        searchPlaceholder="Search software by name / version / vendor…"
+      />
 
-      <Section title={`Users (${users.length})`}>
-        <table>
-          <thead><tr><th>Username</th><th>Full name</th><th>Local</th></tr></thead>
-          <tbody>
-            {users.map((u, idx) => (
-              <tr key={idx}><td>{u.username}</td><td>{u.full_name || "—"}</td><td>{u.is_local ? "yes" : "no"}</td></tr>
-            ))}
-            {users.length === 0 && <tr><td colSpan={3} className="muted">None</td></tr>}
-          </tbody>
-        </table>
-      </Section>
+      <CollapsibleTable
+        title="Users"
+        items={users}
+        columns={[
+          { header: "Username", cell: (u) => u.username },
+          { header: "Full name", cell: (u) => u.full_name || "—" },
+          { header: "Local", cell: (u) => (u.is_local ? "yes" : "no") },
+        ]}
+        searchText={(u) => `${u.username} ${u.full_name}`}
+        searchPlaceholder="Search users by name…"
+      />
 
       <Section title="Recent changes">
         <ChangeTable rows={changes?.items ?? []} showHost={false} />
@@ -345,11 +403,12 @@ export function Scans() {
       <h1>Scans</h1>
       <ErrorBox error={error} />
       <table>
-        <thead><tr><th>Started</th><th>Finished</th><th>Status</th><th>Hosts</th><th>Error</th></tr></thead>
+        <thead><tr><th>Started</th><th>Targets</th><th>Status</th><th>Hosts</th><th>Error</th></tr></thead>
         <tbody>
           {(data?.items ?? []).map((s) => (
             <tr key={s.id} className="clickable" onClick={() => navigate(`/scans/${s.id}`)}>
-              <td>{fmtDate(s.started_at)}</td><td>{fmtDate(s.finished_at)}</td>
+              <td>{fmtDate(s.started_at)}</td>
+              <td>{(s.targets ?? []).join(", ") || "—"}</td>
               <td><span className={`tag status-${s.status}`}>{s.status}</span></td>
               <td>{s.hosts_found}</td><td className="muted">{s.error || "—"}</td>
             </tr>
@@ -405,6 +464,7 @@ export function ScanDetailPage({ id }: { id: string }) {
       </div>
 
       <Section title="Run">
+        <KV k="Targets" v={(scan.targets ?? []).join(", ")} />
         <KV k="Started" v={fmtDate(scan.started_at)} />
         <KV k="Finished" v={fmtDate(scan.finished_at)} />
         <KV k="Persisted" v={scan.hosts_found} />

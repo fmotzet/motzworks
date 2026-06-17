@@ -66,7 +66,7 @@ export interface DeviceDetail extends DeviceItem {
 
 export interface SoftwareAgg { name: string; version: string; device_count: number }
 export interface ChangeRow { device_id: string; hostname: string; field: string; old_value: string; new_value: string; ts: string }
-export interface ScanRow { id: string; started_at: string; finished_at: string | null; status: string; discovered: number; hosts_found: number; error: string }
+export interface ScanRow { id: string; started_at: string; finished_at: string | null; status: string; targets: string[]; discovered: number; hosts_found: number; error: string }
 export interface ScanEvent { ts: string; addr: string; class: string; collector: string; status: string; changes: number; error: string }
 export interface ScanDetail { scan: ScanRow; events: ScanEvent[] }
 export interface ScanTarget { id: string; name: string; cidrs: string[]; enabled: boolean }
