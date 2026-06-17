@@ -15,7 +15,19 @@ and a basic CLI. Discovery and collectors land in Phase 1.
 
 ## Quick start (development)
 
-Requires Go 1.26+ and Docker.
+Requires Docker, plus either Nix (recommended) or a local Go 1.26+ toolchain.
+
+### Dev environment via Nix
+
+A flake provides Go, gopls, staticcheck, golangci-lint, delve, Node, and the
+`psql` client:
+
+```sh
+nix develop          # enter the dev shell
+# or, with direnv installed, just `cd` into the repo (.envrc runs `use flake`)
+```
+
+### Bring it up
 
 ```sh
 # 1. Start PostgreSQL
