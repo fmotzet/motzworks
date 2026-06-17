@@ -27,6 +27,8 @@ func main() {
 		err = cmdConfig(args)
 	case "migrate":
 		err = cmdMigrate(args)
+	case "scan":
+		err = cmdScan(args)
 	case "vault":
 		err = cmdVault(args)
 	case "help", "-h", "--help":
@@ -53,6 +55,7 @@ Commands:
   version              Print the version
   config check         Load and validate a config file
   migrate up           Apply pending database migrations
+  scan                 Discover and inventory hosts (-targets <cidr,...>)
   vault genkey         Generate a new base64 vault key
   help                 Show this help
 
