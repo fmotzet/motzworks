@@ -21,18 +21,24 @@ is a problem; see below).
 **Not built yet:** Active Directory / LDAP collector (deferred — blocked on
 firewall, see below). Optional Phase-4 leftovers: change-alerting webhooks.
 
-## Blocked on infrastructure (not code)
+## Windows — DONE via WMI/DCOM (the Spiceworks way)
 
-- **Windows test DC `bgdc1po-adts` / `10.20.30.70`** (domain `ad.boerse-go.de`,
-  NetBIOS `AD`): its WinRM listener is **Kerberos-only** — NTLM is conclusively
-  rejected (verified across go-ntlmssp, requests_ntlm, pyspnego), even with
-  incoming-NTLM allowed and the account in `Remote Management Users` +
-  `WinRMRemoteWMIUsers__`. The firewall to that DC also blocks 53/88/389/636.
-  To inventory it: open **88/tcp+udp + 53**, implement **Kerberos auth**
-  (gokrb5 + a SPNEGO transport for masterzen/winrm), and target it by
-  hostname (Kerberos is SPN-based, not IP). Same ports unblock the future
-  AD/LDAP collector (needs 389/636). The scanning account `ldap-readonly` is
-  ready on the WMI/Remote-Management side.
+Windows is collected agentlessly over **WMI/DCOM (NTLM, port 135 + dynamic RPC)**
+— `internal/collector/wmi`, a Go collector driving an embedded impacket sidecar
+(`wmi_collect.py`). This is the PRIMARY Windows collector (before WinRM) and
+works against the Kerberos-only DC where WinRM couldn't. Verified end-to-end
+against `10.20.30.70` with account `inventory` (domain `AD`): OS/hardware/NICs/
+users + 95 software titles. Runtime needs python3 + impacket (in the Docker
+image). Credential kind `wmi`; CLI `-wmi-user/-wmi-pass/-wmi-domain`.
+
+Pure-Go DCOM was abandoned (go-msrpc only does legacy `IActivation`, which modern
+Windows denies; the working `RemoteCreateInstance` needs hand-built activation
+blobs — not worth it).
+
+## Still blocked on infrastructure (not code)
+
+- **Active Directory / LDAP collector** — not built; needs firewall **389/636**
+  to the DC opened. WinRM-over-Kerberos is no longer needed (WMI covers Windows).
 
 ## Dev environment on a fresh machine
 

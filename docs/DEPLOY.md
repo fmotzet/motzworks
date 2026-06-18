@@ -57,6 +57,21 @@ docker compose -f docker-compose.prod.yml run --rm app scan \
   -targets 10.0.0.0/24 -ssh-user svc-scan -ssh-key /keys/scan -snmp-community public
 ```
 
+## Windows (WMI/DCOM)
+
+The Windows collector inventories hosts **agentlessly via WMI over DCOM** (NTLM,
+port 135 + dynamic RPC) — the same approach Spiceworks used, and the primary
+Windows path (it works even where WinRM is Kerberos-only). It shells out to an
+embedded impacket sidecar, so the runtime needs **Python 3 + impacket** — the
+provided Docker image already includes them. (Override the interpreter with
+`MOTZWORKS_PYTHON` if needed.)
+
+Per Windows host: open the firewall for **135/tcp + the dynamic RPC range** from
+the scanner, and use a credential of kind `wmi` (a least-privilege account with
+DCOM "Remote Activation" + Remote-Enable on the `root\cimv2` WMI namespace, e.g.
+via the "Distributed COM Users" group). Software inventory comes from the
+registry Uninstall keys via `StdRegProv`.
+
 ## Integrations
 
 - **Zabbix** pulls inventory directly from PostgreSQL via the stable views

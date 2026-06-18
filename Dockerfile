@@ -23,9 +23,14 @@ RUN CGO_ENABLED=0 go build \
     -ldflags "-s -w -X github.com/stock3/motzworks/internal/version.Version=${VERSION}" \
     -o /motzworks ./cmd/motzworks
 
-# --- Stage 3: minimal runtime ---
-FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=build /motzworks /motzworks
+# --- Stage 3: runtime ---
+# Python + impacket are required by the WMI (Windows/DCOM) collector, so the
+# runtime is a slim Python base rather than distroless-static.
+FROM python:3.12-slim AS runtime
+RUN pip install --no-cache-dir impacket \
+    && useradd -r -u 65532 motzworks
+COPY --from=build /motzworks /usr/local/bin/motzworks
+USER motzworks
 EXPOSE 8080
-ENTRYPOINT ["/motzworks"]
+ENTRYPOINT ["motzworks"]
 CMD ["serve", "-migrate"]

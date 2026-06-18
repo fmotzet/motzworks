@@ -47,10 +47,18 @@ New scan credentials: `-proxmox-token`/`-proxmox-secret`, `-opnsense-key`/
 `-opnsense-secret`, `-fortigate-token` (and the matching credential `kind`s in
 the vault/API).
 
-> Live-validated so far: discovery, SSH, SNMP, the API, dashboards, scheduler,
-> Zabbix views. The Proxmox/OPNsense/FortiGate collectors and WinRM are
-> implemented with parser unit tests but await validation against live targets.
-> Active Directory (LDAP) is deferred until the firewall opens 389/636 to the DC.
+**Windows (WMI/DCOM).** Agentless Windows inventory — OS, hardware, network,
+local users and installed software (registry) — over **WMI/DCOM with NTLM**, the
+transport Spiceworks used. It works against hosts whose WinRM is Kerberos-only,
+so it's the primary Windows collector (WinRM is secondary). The DCOM/WMI call is
+handled by an embedded impacket sidecar, so the runtime needs Python 3 +
+impacket (bundled in the Docker image). Credential kind `wmi`; CLI
+`-wmi-user/-wmi-pass/-wmi-domain`. Validated end-to-end against a Server 2022 DC.
+
+> Live-validated so far: discovery, SSH, SNMP, **WMI/Windows**, the API,
+> dashboards, scheduler, Zabbix views. The Proxmox/OPNsense/FortiGate collectors
+> are implemented with parser unit tests but await validation against live
+> targets. Active Directory (LDAP) is deferred until the firewall opens 389/636.
 
 ### Phase 2 — Scheduler + API + dashboards
 

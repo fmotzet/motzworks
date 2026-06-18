@@ -41,8 +41,10 @@ to protected routes get `401`; viewers hitting admin routes get `403`.
 | GET/POST | `/api/schedules` | POST `{"scan_target_id","interval_secs"(>=60),"enabled"?}` |
 | GET | `/api/audit` | audit log; query: `limit` |
 
-Credential `kind` values: `ssh-password`, `ssh-key`, `winrm`, `snmp-v2c`,
-`snmp-v3`, `proxmox-token`, `opnsense-api`, `fortigate-token`, `api-token`.
+Credential `kind` values: `ssh-password`, `ssh-key`, `wmi` (Windows via
+WMI/DCOM — `username` may be `DOMAIN\user` / `user@domain`, optional
+`extra.domain`), `winrm`, `snmp-v2c`, `snmp-v3`, `proxmox-token`, `opnsense-api`,
+`fortigate-token`, `api-token`.
 
 ## Observability
 

@@ -31,6 +31,9 @@ func cmdScan(args []string) error {
 	snmpCommunity := fs.String("snmp-community", "", "SNMPv2c community string")
 	winrmUser := fs.String("winrm-user", "", "WinRM username")
 	winrmPass := fs.String("winrm-pass", "", "WinRM password")
+	wmiUser := fs.String("wmi-user", "", "WMI/DCOM username (DOMAIN\\user, user@domain, or plain)")
+	wmiPass := fs.String("wmi-pass", "", "WMI/DCOM password")
+	wmiDomain := fs.String("wmi-domain", "", "WMI/DCOM domain (if not encoded in -wmi-user)")
 	proxmoxToken := fs.String("proxmox-token", "", "Proxmox API token id (user@realm!tokenid)")
 	proxmoxSecret := fs.String("proxmox-secret", "", "Proxmox API token secret (UUID)")
 	opnsenseKey := fs.String("opnsense-key", "", "OPNsense API key")
@@ -63,6 +66,7 @@ func cmdScan(args []string) error {
 	creds, err := buildCredentials(credFlags{
 		sshUser: *sshUser, sshPass: *sshPass, sshKey: *sshKey,
 		snmpCommunity: *snmpCommunity, winrmUser: *winrmUser, winrmPass: *winrmPass,
+		wmiUser: *wmiUser, wmiPass: *wmiPass, wmiDomain: *wmiDomain,
 		proxmoxToken: *proxmoxToken, proxmoxSecret: *proxmoxSecret,
 		opnsenseKey: *opnsenseKey, opnsenseSecret: *opnsenseSecret,
 		fortigateToken: *fortigateToken,
@@ -110,6 +114,7 @@ type credFlags struct {
 	sshUser, sshPass, sshKey    string
 	snmpCommunity               string
 	winrmUser, winrmPass        string
+	wmiUser, wmiPass, wmiDomain string
 	proxmoxToken, proxmoxSecret string
 	opnsenseKey, opnsenseSecret string
 	fortigateToken              string
@@ -136,6 +141,13 @@ func buildCredentials(f credFlags) ([]collector.Credential, error) {
 	}
 	if f.winrmUser != "" {
 		creds = append(creds, collector.Credential{Kind: "winrm", Username: f.winrmUser, Secret: f.winrmPass})
+	}
+	if f.wmiUser != "" {
+		c := collector.Credential{Kind: "wmi", Username: f.wmiUser, Secret: f.wmiPass}
+		if f.wmiDomain != "" {
+			c.Extra = map[string]string{"domain": f.wmiDomain}
+		}
+		creds = append(creds, c)
 	}
 	if f.proxmoxToken != "" {
 		creds = append(creds, collector.Credential{Kind: "proxmox-token", Username: f.proxmoxToken, Secret: f.proxmoxSecret})
