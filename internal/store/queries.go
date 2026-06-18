@@ -262,15 +262,20 @@ type SoftwareAgg struct {
 	DeviceCount int    `json:"device_count"`
 }
 
-// SoftwareRollup aggregates installed software by name+version, ordered by
-// popularity then name. limit/offset paginate the result; the ordering is fully
-// deterministic so successive offset pages don't drop or repeat rows.
-func (s *Store) SoftwareRollup(ctx context.Context, query string, limit, offset int) ([]SoftwareAgg, error) {
+// SoftwareRollup aggregates installed software by name+version. sort is "name"
+// (alphabetical) or "devices" (most-installed first, the default). limit/offset
+// paginate; every ordering ends with name,version tiebreakers so it's fully
+// deterministic and offset pages don't drop or repeat rows.
+func (s *Store) SoftwareRollup(ctx context.Context, query string, limit, offset int, sort string) ([]SoftwareAgg, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 200
 	}
 	if offset < 0 {
 		offset = 0
+	}
+	order := "device_count DESC, lower(name), name, version"
+	if sort == "name" {
+		order = "lower(name), name, version"
 	}
 	var b argBuilder
 	where := "1=1"
@@ -283,7 +288,7 @@ func (s *Store) SoftwareRollup(ctx context.Context, query string, limit, offset 
 		SELECT name, COALESCE(version,''), count(DISTINCT device_id) AS device_count
 		FROM software WHERE `+where+`
 		GROUP BY name, version
-		ORDER BY device_count DESC, lower(name), name, version
+		ORDER BY `+order+`
 		LIMIT `+lim+` OFFSET `+off, b.args...)
 	if err != nil {
 		return nil, err
@@ -296,6 +301,37 @@ func (s *Store) SoftwareRollup(ctx context.Context, query string, limit, offset 
 			return nil, err
 		}
 		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// DevicesWithSoftware returns the devices that have a given software title
+// installed, matched by exact name + version (the version a rollup row
+// represents; "" matches a versionless entry).
+func (s *Store) DevicesWithSoftware(ctx context.Context, name, version string, limit int) ([]DeviceListItem, error) {
+	if limit <= 0 || limit > 2000 {
+		limit = 500
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT d.id, d.device_type, COALESCE(d.hostname,''), COALESCE(host(d.primary_ip),''),
+		       COALESCE(o.name,''), COALESCE(d.source,''), d.last_seen
+		FROM software sw
+		JOIN device d ON d.id = sw.device_id
+		LEFT JOIN os_info o ON o.device_id = d.id
+		WHERE sw.name = $1 AND COALESCE(sw.version,'') = $2
+		ORDER BY d.last_seen DESC
+		LIMIT $3`, name, version, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []DeviceListItem{}
+	for rows.Next() {
+		var d DeviceListItem
+		if err := rows.Scan(&d.ID, &d.Type, &d.Hostname, &d.PrimaryIP, &d.OSName, &d.Source, &d.LastSeen); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
 	}
 	return out, rows.Err()
 }

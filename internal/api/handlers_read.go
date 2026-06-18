@@ -69,12 +69,26 @@ func (s *Server) handleDevicesCSV(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSoftware(w http.ResponseWriter, r *http.Request) {
-	rollup, err := s.store.SoftwareRollup(r.Context(), r.URL.Query().Get("q"), queryInt(r, "limit", 200), queryInt(r, "offset", 0))
+	rollup, err := s.store.SoftwareRollup(r.Context(), r.URL.Query().Get("q"), queryInt(r, "limit", 200), queryInt(r, "offset", 0), r.URL.Query().Get("sort"))
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": rollup})
+}
+
+func (s *Server) handleSoftwareDevices(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	items, err := s.store.DevicesWithSoftware(r.Context(), name, r.URL.Query().Get("version"), queryInt(r, "limit", 500))
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {

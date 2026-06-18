@@ -75,6 +75,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/devices/{id}", s.auth(s.handleDevice))
 	mux.Handle("GET /api/devices.csv", s.auth(s.handleDevicesCSV))
 	mux.Handle("GET /api/software", s.auth(s.handleSoftware))
+	mux.Handle("GET /api/software/devices", s.auth(s.handleSoftwareDevices))
 	mux.Handle("GET /api/changes", s.auth(s.handleChanges))
 	mux.Handle("GET /api/scans", s.auth(s.handleScans))
 	mux.Handle("GET /api/scans/{id}", s.auth(s.handleScanDetail))

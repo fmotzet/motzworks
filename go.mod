@@ -30,6 +30,7 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/masterzen/simplexml v0.0.0-20190410153822-31eea3082786 // indirect
+	github.com/oiweiwei/go-msrpc v1.4.3 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	golang.org/x/net v0.55.0 // indirect

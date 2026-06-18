@@ -24,6 +24,7 @@
             delve            # debugger
             nodejs           # React/TS dashboard (Phase 2)
             postgresql_16    # psql client for local dev DB
+            openssl          # generating MOTZWORKS_AUTH_SECRET (see docs/DEPLOY.md)
             git
           ];
 

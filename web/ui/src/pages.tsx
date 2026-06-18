@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   api, Stats, DeviceItem, DeviceDetail, SoftwareAgg, ChangeRow, ScanRow, ScanDetail,
   ScanTarget, Credential, Schedule,
@@ -341,12 +341,40 @@ function KV({ k, v }: { k: string; v: any }) {
 
 const SOFTWARE_PAGE = 100;
 
+// SoftwareDevices lazily lists the devices that have a given software title,
+// shown inline when a software row is expanded.
+function SoftwareDevices({ name, version }: { name: string; version: string }) {
+  const path = `/api/software/devices?name=${encodeURIComponent(name)}&version=${encodeURIComponent(version)}`;
+  const { data, error, loading } = useFetch<{ items: DeviceItem[] }>(path);
+  if (error) return <div className="error">{error}</div>;
+  if (loading || !data) return <div className="muted">Loading devices…</div>;
+  const devices = data.items ?? [];
+  if (devices.length === 0) return <div className="muted">No devices.</div>;
+  return (
+    <table className="subtable">
+      <thead><tr><th>Hostname</th><th>IP</th><th>Type</th><th>OS</th></tr></thead>
+      <tbody>
+        {devices.map((d) => (
+          <tr key={d.id} className="clickable" onClick={() => navigate(`/devices/${d.id}`)}>
+            <td>{d.hostname || "—"}</td>
+            <td>{d.primary_ip || "—"}</td>
+            <td><span className="tag">{d.type}</span></td>
+            <td>{d.os_name || "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export function Software() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<SoftwareAgg[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [sort, setSort] = useState("devices"); // "devices" | "name"
   const sentinel = useRef<HTMLTableRowElement | null>(null);
 
   // Track the live offset so the IntersectionObserver always requests the next
@@ -354,7 +382,7 @@ export function Software() {
   const offset = useRef(0);
   const busy = useRef(false);
 
-  const loadMore = useCallback(async (query: string, reset: boolean) => {
+  const loadMore = useCallback(async (query: string, sortBy: string, reset: boolean) => {
     if (busy.current) return;
     busy.current = true;
     setLoading(true);
@@ -362,7 +390,7 @@ export function Software() {
     const from = reset ? 0 : offset.current;
     try {
       const data = await api.get<{ items: SoftwareAgg[] }>(
-        `/api/software?q=${encodeURIComponent(query)}&limit=${SOFTWARE_PAGE}&offset=${from}`,
+        `/api/software?q=${encodeURIComponent(query)}&sort=${sortBy}&limit=${SOFTWARE_PAGE}&offset=${from}`,
       );
       const batch = data.items ?? [];
       offset.current = from + batch.length;
@@ -376,37 +404,61 @@ export function Software() {
     }
   }, []);
 
-  // Reset and load the first page whenever the search term changes.
+  // Reset and load the first page whenever the search term or sort changes.
   useEffect(() => {
     setDone(false);
     offset.current = 0;
-    loadMore(q, true);
-  }, [q, loadMore]);
+    setExpanded(null);
+    loadMore(q, sort, true);
+  }, [q, sort, loadMore]);
 
   // Load the next page when the sentinel row scrolls into view.
   useEffect(() => {
     const el = sentinel.current;
     if (!el || done) return;
     const obs = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) loadMore(q, false);
+      if (entries[0].isIntersecting) loadMore(q, sort, false);
     }, { rootMargin: "200px" });
     obs.observe(el);
     return () => obs.disconnect();
-  }, [q, done, loadMore, items.length]);
+  }, [q, sort, done, loadMore, items.length]);
 
   return (
     <div>
       <h1>Software</h1>
       <div className="toolbar">
         <input placeholder="Search software…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="muted small">Sort:&nbsp;
+          <select value={sort} onChange={(e) => setSort(e.target.value)}>
+            <option value="devices">Most devices</option>
+            <option value="name">Name (A–Z)</option>
+          </select>
+        </label>
       </div>
       <ErrorBox error={error} />
       <table>
         <thead><tr><th>Name</th><th>Version</th><th>Devices</th></tr></thead>
         <tbody>
-          {items.map((s, idx) => (
-            <tr key={idx}><td>{s.name}</td><td>{s.version || "—"}</td><td>{s.device_count}</td></tr>
-          ))}
+          {items.map((s, idx) => {
+            const key = `${s.name} ${s.version}`;
+            const open = expanded === key;
+            return (
+              <Fragment key={idx}>
+                <tr className="clickable" onClick={() => setExpanded(open ? null : key)}>
+                  <td><span className="chevron">{open ? "▾" : "▸"}</span> {s.name}</td>
+                  <td>{s.version || "—"}</td>
+                  <td>{s.device_count}</td>
+                </tr>
+                {open && (
+                  <tr>
+                    <td colSpan={3} className="subrow">
+                      <SoftwareDevices name={s.name} version={s.version} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
           {items.length === 0 && !loading && <tr><td colSpan={3} className="muted">No software.</td></tr>}
           {!done && <tr ref={sentinel}><td colSpan={3} className="muted">{loading ? "Loading…" : ""}</td></tr>}
         </tbody>
