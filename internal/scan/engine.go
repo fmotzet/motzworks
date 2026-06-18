@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/netip"
+	"strings"
 
 	"github.com/stock3/motzworks/internal/collector"
 	"github.com/stock3/motzworks/internal/discovery"
@@ -132,6 +133,7 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 	}
 
 	var related []collector.Related
+	var collectErrs []string
 	for _, c := range e.reg.For(class) {
 		t := collector.Target{Addr: h.Addr, Hostname: h.Addr.String(), Class: class, Credentials: creds}
 		res, err := c.Collect(ctx, t)
@@ -140,15 +142,18 @@ func (e *Engine) processHost(ctx context.Context, runID string, h discovery.Host
 				continue // collector simply doesn't apply to this host
 			}
 			e.log.Debug("collector failed", "collector", c.Name(), "addr", hr.Addr, "err", err)
-			hr.CollectErr = c.Name() + ": " + err.Error()
+			// Accumulate so a later collector's failure (e.g. WinRM 401) doesn't
+			// mask an earlier one's (e.g. WMI), which would hide the real cause.
+			collectErrs = append(collectErrs, c.Name()+": "+err.Error())
 			continue
 		}
 		dev = mergeDevice(dev, res.Device, c.Name())
 		related = res.Related
 		hr.Collector = c.Name()
-		hr.CollectErr = ""
+		collectErrs = nil
 		break
 	}
+	hr.CollectErr = strings.Join(collectErrs, "; ")
 
 	collected := hr.Collector != ""
 	id, changes, err := e.store.UpsertDevice(ctx, dev, runID, collected)

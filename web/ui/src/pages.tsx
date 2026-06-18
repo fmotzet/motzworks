@@ -440,7 +440,7 @@ export function Software() {
         <thead><tr><th>Name</th><th>Version</th><th>Devices</th></tr></thead>
         <tbody>
           {items.map((s, idx) => {
-            const key = `${s.name} ${s.version}`;
+            const key = `${s.name}␟${s.version}`; // unit-separator delimiter
             const open = expanded === key;
             return (
               <Fragment key={idx}>
@@ -687,13 +687,18 @@ export function Admin() {
         <div className="toolbar">
           <input placeholder="name" value={cName} onChange={(e) => setCName(e.target.value)} />
           <select value={cKind} onChange={(e) => setCKind(e.target.value)}>
+            <option value="wmi">wmi (Windows / DCOM)</option>
             <option value="ssh-password">ssh-password</option>
             <option value="ssh-key">ssh-key</option>
             <option value="winrm">winrm</option>
             <option value="snmp-v2c">snmp-v2c</option>
+            <option value="snmp-v3">snmp-v3</option>
+            <option value="proxmox-token">proxmox-token</option>
+            <option value="opnsense-api">opnsense-api</option>
+            <option value="fortigate-token">fortigate-token</option>
           </select>
-          <input placeholder="username" value={cUser} onChange={(e) => setCUser(e.target.value)} />
-          <input placeholder="secret / community / key" type="password" value={cSecret} onChange={(e) => setCSecret(e.target.value)} style={{ flex: 1 }} />
+          <input placeholder={cKind === "wmi" ? "username (DOMAIN\\user)" : "username"} value={cUser} onChange={(e) => setCUser(e.target.value)} />
+          <input placeholder="secret / password / community / token" type="password" value={cSecret} onChange={(e) => setCSecret(e.target.value)} style={{ flex: 1 }} />
           <button onClick={createCred}>Add credential</button>
         </div>
       </Section>

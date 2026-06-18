@@ -25,6 +25,7 @@
             nodejs           # React/TS dashboard (Phase 2)
             postgresql_16    # psql client for local dev DB
             openssl          # generating MOTZWORKS_AUTH_SECRET (see docs/DEPLOY.md)
+            (python3.withPackages (ps: with ps; [ impacket ]))
             git
           ];
 
